@@ -1,57 +1,103 @@
-class LayoutExtractor {
-  constructor() {
-    this.defaultMargins = { top: 72, right: 72, bottom: 72, left: 72 };
-  }
-
-  extractLayout(blocks, pageSize) {
-    return new LayoutInfo({
-      pageSize: pageSize || { width: 595, height: 842 },
-      margins: this.detectMargins(blocks),
-      orientation: this.detectOrientation(pageSize),
-      columns: this.detectColumns(blocks),
-      blocks: blocks.map(block => new DocumentBlock(block))
-    });
-  }
-
-  detectMargins(blocks) {
-    if (!blocks.length) {
-      return this.defaultMargins;
-    }
-
-    const top = Math.min(...blocks.map(b => b.position.y));
-    const left = Math.min(...blocks.map(b => b.position.x));
-    const right = Math.min(...blocks.map(b => b.position.x + b.position.width));
-    const bottom = Math.min(...blocks.map(b => b.position.y + b.position.height));
-
-    return { top, right, bottom, left };
-  }
-
-  detectOrientation(pageSize) {
-    if (!pageSize) return 'portrait';
-    return pageSize.width > pageSize.height ? 'landscape' : 'portrait';
-  }
-
-  detectColumns(blocks) {
-    const xPositions = blocks
-      .map(b => b.position.x)
-      .sort((a, b) => a - b);
-
-    const columns = [];
-    let currentX = xPositions[0];
-    const minGap = 50;
-
-    for (let i = 1; i < xPositions.length; i++) {
-      if (xPositions[i] - currentX > minGap) {
-        columns.push({
-          x: currentX,
-          width: xPositions[i] - currentX - 10
-        });
-        currentX = xPositions[i];
-      }
-    }
-
-    return columns;
+class DocumentBlock {
+  constructor(type, content, style = {}) {
+    this.type = type;
+    this.content = content;
+    this.style = style;
   }
 }
 
-module.exports = LayoutExtractor;
+class LayoutInfo {
+  constructor() {
+    this.blocks = [];
+    this.styles = new Map();
+    this.metadata = {};
+  }
+
+  addBlock(block) {
+    this.blocks.push(block);
+  }
+
+  addStyle(selector, style) {
+    this.styles.set(selector, style);
+  }
+
+  setMetadata(key, value) {
+    this.metadata[key] = value;
+  }
+}
+
+class LayoutExtractor {
+  constructor() {
+    this.currentLayout = new LayoutInfo();
+  }
+
+  async extractLayout(document) {
+    try {
+      const blocks = await this.parseDocument(document);
+      return new DocumentBlock('root', blocks);
+    } catch (error) {
+      throw new Error(`Layout extraction failed: ${error.message}`);
+    }
+  }
+
+  async parseDocument(document) {
+    const blocks = [];
+    const processedContent = await this._preprocessContent(document);
+
+    for (const section of processedContent) {
+      const block = new DocumentBlock(
+        section.type,
+        section.content,
+        this._extractStyle(section)
+      );
+      blocks.push(block);
+    }
+
+    return blocks;
+  }
+
+  _extractStyle(section) {
+    const defaultStyle = {
+      font: section.font || 'Arial',
+      fontSize: section.fontSize || 12,
+      alignment: section.alignment || 'left',
+      direction: this._detectTextDirection(section.content)
+    };
+
+    return {
+      ...defaultStyle,
+      ...section.style
+    };
+  }
+
+  _detectTextDirection(text) {
+    // Простая проверка на наличие иврита в тексте
+    const hebrewPattern = /[\u0590-\u05FF]/;
+    return hebrewPattern.test(text) ? 'rtl' : 'ltr';
+  }
+
+  async _preprocessContent(document) {
+    // Заглушка для демонстрации структуры
+    return [{
+      type: 'text',
+      content: document.toString(),
+      font: 'Arial',
+      fontSize: 12,
+      alignment: 'left'
+    }];
+  }
+
+  getStyles() {
+    return this.currentLayout.styles;
+  }
+
+  getMetadata() {
+    return this.currentLayout.metadata;
+  }
+}
+
+module.exports = {
+  LayoutExtractor,
+  LayoutInfo,
+  DocumentBlock
+};
