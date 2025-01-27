@@ -11,158 +11,129 @@ Web application for translating documents from Hebrew to Russian and English whi
 ## Recent Changes & Plans
 
 ### Latest Updates (27.01.2025)
-1. Translation Service Upgrade:
-   - ✓ Replaced deprecated google-translate-api-free
-   - ✓ Integrated hebrew-transliteration@2.7.0
-   - ✓ Added @vitalets/google-translate-api
-   - ✓ Implemented rate limiting
-   - ✓ Added batch processing for documents
+1. Fixed Development Infrastructure:
+   - ✓ ESLint configuration updated
+   - ✓ Modern JS/ES modules support
+   - ✓ Test environment setup
+   - ✓ Translation service upgrade
+   - ⧖ GitHub Actions setup
 
-2. CI/CD Progress:
-   - ✓ Fixed template literals syntax
-   - ✓ Updated dependencies
-   - ✓ Implemented graceful shutdown
-   - ⧖ Remaining linter fixes
+2. Translation Features:
+   - ✓ Hebrew Transliteration (v2.7.0)
+   - ✓ Rate limiting implementation
+   - ✓ Batch processing for documents
+   - ✓ Error handling system
 
-### Next Tasks
-- Complete remaining linter fixes
-- Setup GitHub Actions workflow
-- Implement automated testing
-- Add translation quality monitoring
+### Upcoming Tasks
+- Complete GitHub Actions workflow
+- Set up automated testing
+- Add quality monitoring
 
-## Project Structure
+## Project Architecture
 
-### Core Components
+### Structure
+```
+hebrew-doc-translator/
+├── server/
+│   ├── api/
+│   │   └── translate.js       # Translation endpoint
+│   ├── services/
+│   │   ├── DocumentGenerator  # Output generation
+│   │   ├── LayoutExtractor   # Format preservation
+│   │   └── Translator        # Translation logic
+│   ├── middleware/
+│   │   ├── errorHandler.js
+│   │   └── fileValidation.js # Using mime-types
+│   └── index.js              # Express setup
+├── client/                   # React frontend
+└── tests/                   # ES modules enabled
+```
+
+### Core Features
 ```javascript
-Backend:
-└── server/
-    ├── api/              // API endpoints
-    ├── services/         // Core services
-    │   ├── Translator   // Translation with batching & rate limiting
-    │   ├── DocumentProcessor
-    │   └── LayoutExtractor
-    ├── middleware/      // Express middleware
-    └── index.js         // Main server file
+Translation Pipeline:
+Doc → Extract → Transliterate → Translate → Format → Output
 
-Frontend:
-└── client/
-    └── src/
-        ├── components/  // React components
-        └── services/    // API integration
-```
-
-### Translation Pipeline
-```
-Input Document → Document Processor → Text Extraction →
-Hebrew Transliteration → Translation API → Layout Restoration → Output
-```
-
-### Translation Features
-- Hebrew text preprocessing with hebrew-transliteration
-- Rate-limited free translation API (@vitalets/google-translate-api)
-- Batch processing for large documents
-- Error handling and retries
-- Quality preservation for Hebrew-specific content
-
-## Technical Details
-
-### Translation Service
-```javascript
-Capabilities:
-- Hebrew → English/Russian
-- English/Russian → Hebrew
+Supported Formats:
+- Input: PDF, DOCX
+- Output: Same as input
 - Mixed content handling
-- Formatting preservation
 
-Limitations:
-- 100 requests/minute (rate limiting)
-- Maximum batch size: 10 blocks
-- Free API constraints
+Rate Limiting:
+- 100 requests/minute
+- Batch size: 10 blocks
+- Auto-recovery
 ```
 
-### Dependencies
-```json
-Core:
-  "@vitalets/google-translate-api": "^9.2.0",
-  "hebrew-transliteration": "^2.7.0",
-  "bull": "^4.12.0",
-  "express": "^4.18.2"
+## Technical Stack
 
-Development:
-  "vitest": "^3.0.0",
-  "eslint": "^8.56.0"
+### Backend Services
+```javascript
+Translation:
+- hebrew-transliteration: "^2.7.0"
+- Rate limiting & batching
+- Format preservation
+
+Document Processing:
+- PDF: pdf.js-extract
+- DOCX: mammoth
+- Mime detection: mime-types
+```
+
+### Development Tools
+```javascript
+Testing:
+- Vitest + ESM support
+- Jest for integration
+- Playwright for E2E
+
+Linting:
+- ESLint with modern config
+- Support for ES modules
+- Custom rules for tests
 ```
 
 ## API Documentation
 
 ### Endpoints
-```
+```http
 POST /api/translate
-- Accepts: PDF, DOCX
-- Returns: Job ID for tracking
-
 GET /api/status/:jobId
-- Returns: Translation progress
-
 GET /api/download/:jobId
-- Returns: Translated document
 ```
 
-### Example Usage
+### Development Guidelines
 ```javascript
-// Translation service usage
-const translator = new Translator();
-const result = await translator.translateText(
-  'שָׁלוֹם',
-  'he',
-  'en'
-);
-```
+// ES Modules in Tests
+import { expect } from 'vitest'
+import { render } from '@testing-library/react'
 
-## Development Workflow
-1. Code changes in feature branches
-2. ESLint validation
-3. Tests (unit, integration)
-4. PR review
-5. Main branch merge
-
-## Known Issues & Limitations
-1. File size limit: 10MB
-2. Rate limiting: 100 req/min
-3. API stability depends on Google
-4. Processing time for large docs
-
-## Testing Strategy
-```javascript
-Unit Tests:
-- Translation service
-- Document processing
-- Rate limiting
-
-Integration Tests:
-- Full translation pipeline
-- API endpoints
-- Error scenarios
+// CommonJS in Core
+const express = require('express')
 ```
 
 ## Error Handling
 ```javascript
 Categories:
-1. Rate limiting errors
-2. Translation API errors
-3. Hebrew text processing
-4. Document format errors
+1. API limits
+2. File processing
+3. Translation errors
+4. Format issues
 ```
+
+## Known Issues
+1. Max file size: 10MB
+2. Rate limits: 100 req/min
+3. Processing delays
 
 ## Change History
 
 ### 27.01.2025
-- Upgraded translation service
-- Implemented rate limiting
-- Added Hebrew preprocessing
-- Fixed CI/CD issues
+- ESLint modern config
+- Translation upgrades
+- Test environment fixes
 
 ### 26.01.2025
-- Project initialization
-- Basic structure setup
-- Development process setup
+- Project init
+- Base structure
+- Dev setup
