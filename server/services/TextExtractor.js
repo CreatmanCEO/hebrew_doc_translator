@@ -1,7 +1,6 @@
 const { createWorker } = require('tesseract.js');
 const pdf2json = require('pdf2json');
 const docx4js = require('docx4js');
-const fs = require('fs').promises;
 
 class TextExtractor {
   constructor() {
@@ -47,13 +46,13 @@ class TextExtractor {
     return 'unknown';
   }
 
-  async extractContent(fileBuffer, fileType, options = {}) {
+  async extractContent(fileBuffer, fileType) {
     try {
       switch(fileType.toLowerCase()) {
         case 'pdf':
-          return await this.extractFromPDF(fileBuffer, options);
+          return await this.extractFromPDF(fileBuffer);
         case 'docx':
-          return await this.extractFromDOCX(fileBuffer, options);
+          return await this.extractFromDOCX(fileBuffer);
         default:
           throw new Error('Unsupported file type: ' + fileType);
       }
@@ -63,7 +62,7 @@ class TextExtractor {
     }
   }
 
-  async extractFromPDF(buffer, options) {
+  async extractFromPDF(buffer) {
     const textBlocks = [];
     
     try {
@@ -90,19 +89,19 @@ class TextExtractor {
           });
         });
       } else {
-        const ocrBlocks = await this.performOCR(buffer, options);
+        const ocrBlocks = await this.performOCR(buffer);
         textBlocks.push(...ocrBlocks);
       }
     } catch (error) {
       console.error('PDF extraction failed, falling back to OCR:', error);
-      const ocrBlocks = await this.performOCR(buffer, options);
+      const ocrBlocks = await this.performOCR(buffer);
       textBlocks.push(...ocrBlocks);
     }
 
     return this.postProcessBlocks(textBlocks);
   }
 
-  async extractFromDOCX(buffer, options) {
+  async extractFromDOCX(buffer) {
     const textBlocks = [];
     const doc = await docx4js.load(buffer);
 
@@ -121,9 +120,9 @@ class TextExtractor {
     return this.postProcessBlocks(textBlocks);
   }
 
-  async performOCR(buffer, options) {
+  async performOCR(buffer) {
     const worker = await this.initWorker();
-    const { data } = await worker.recognize(buffer, options);
+    const { data } = await worker.recognize(buffer);
     
     return data.words.map(word => ({
       text: word.text,
