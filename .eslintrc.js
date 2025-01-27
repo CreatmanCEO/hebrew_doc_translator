@@ -1,34 +1,40 @@
 module.exports = {
-  root: true,
   env: {
     node: true,
-    es2024: true,
-    jest: true
+    es2021: true,
+    jest: true,
   },
   extends: [
     'eslint:recommended',
-    'plugin:node/recommended'
+    'plugin:node/recommended',
   ],
   parserOptions: {
-    ecmaVersion: 2024,
-    sourceType: 'module'
+    ecmaVersion: 'latest',
+    sourceType: 'module',
   },
   rules: {
-    'no-console': process.env.NODE_ENV === 'production' ? 'warn' : 'off',
-    'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'off',
-    'node/no-unsupported-features/es-syntax': [
-      'error',
-      { version: '>=18.0.0', ignores: ['modules'] }
-    ],
-    'node/no-missing-import': 'off',
-    'node/no-unpublished-import': 'off'
+    'node/no-missing-require': ['error', {
+      allowModules: ['bull', 'pdf.js-extract', 'mammoth'],
+      tryExtensions: ['.js', '.json', '.node']
+    }],
+    'node/no-extraneous-require': ['error', {
+      allowModules: ['mime-types']
+    }],
+    'no-unused-vars': ['error', {
+      argsIgnorePattern: '^_',
+      varsIgnorePattern: '^_',
+    }],
   },
   overrides: [
     {
-      files: ['**/*.test.js', '**/*.spec.js'],
+      files: ['tests/**/*.js', 'test/**/*.js', '**/*.test.js', '**/*.spec.js'],
+      rules: {
+        'node/no-unpublished-require': 'off',
+      },
       env: {
-        jest: true
-      }
-    }
-  ]
-}
+        jest: true,
+        mocha: true,
+      },
+    },
+  ],
+};
