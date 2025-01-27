@@ -27,14 +27,40 @@ module.exports = {
   },
   overrides: [
     {
-      files: ['tests/**/*.js', 'test/**/*.js', '**/*.test.js', '**/*.spec.js'],
+      // Тестовые файлы
+      files: [
+        'tests/**/*.js',
+        'test/**/*.js',
+        '**/*.test.js',
+        '**/*.spec.js',
+        'tests/setup.js'
+      ],
       rules: {
         'node/no-unpublished-require': 'off',
+        'node/no-unpublished-import': 'off'
       },
       env: {
         jest: true,
         mocha: true,
       },
     },
-  ],
+    {
+      // Конфигурационные файлы
+      files: [
+        '*.config.js',
+        '.eslintrc.js',
+        'vitest.*.js',
+        'playwright.*.js'
+      ],
+      rules: {
+        'node/no-unpublished-import': 'off',
+        'node/no-unpublished-require': 'off',
+        'node/no-unsupported-features/es-syntax': 'off',
+        'node/no-missing-import': 'off'
+      },
+      parserOptions: {
+        sourceType: 'module'
+      }
+    }
+  ]
 };
