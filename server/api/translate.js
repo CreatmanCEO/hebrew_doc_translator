@@ -3,6 +3,7 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const fs = require('fs').promises;
+const Bull = require('bull');
 
 const { DocumentProcessingError } = require('../middleware/errorHandler');
 const DocumentAnalyzer = require('../services/DocumentAnalyzer');
