@@ -1,8 +1,7 @@
-const mammoth = require('mammoth');
+const path = require('path');
 const { TranslationServiceClient } = require('@azure/ai-translator');
 const { PdfExtract } = require('pdf.js-extract');
-const path = require('path');
-const fs = require('fs').promises;
+const mammoth = require('mammoth');
 
 class DocumentProcessor {
   constructor() {
