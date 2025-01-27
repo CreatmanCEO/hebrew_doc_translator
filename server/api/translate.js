@@ -1,9 +1,9 @@
-const Bull = require('bull');
+const Queue = require('bull');
 const express = require('express');
 const router = express.Router();
 
 // Создаем очередь для обработки документов
-const documentQueue = new Bull('document-processing', {
+const documentQueue = new Queue('document-processing', {
   redis: {
     host: process.env.REDIS_HOST || 'localhost',
     port: process.env.REDIS_PORT || 6379
