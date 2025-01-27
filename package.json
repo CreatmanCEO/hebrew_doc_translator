@@ -27,7 +27,7 @@
     "pdf2json": "^3.0.5",
     "docx4js": "^3.2.20",
     "tesseract.js": "^5.0.3",
-    "google-translate-api-free": "^0.3.1",
+    "@vitalets/google-translate-api": "^9.2.0",
     "pdfkit": "^0.14.0",
     "docx": "^8.5.0",
     "bull": "^4.12.0",
