@@ -1,82 +1,32 @@
-const { Document, Paragraph, TextRun, HeadingLevel } = require('docx');
-const PDFDocument = require('pdfkit');
-const fs = require('fs').promises;
+class DocumentGenerator {
+  constructor() {
+    this.formats = new Set(['pdf', 'docx']);
+  }
 
-async function generatePDF(translatedData, outputPath) {
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument();
-    const stream = fs.createWriteStream(outputPath);
-
-    doc.pipe(stream);
-
-    if (translatedData.formatting) {
-      // Воссоздаем форматирование из оригинального PDF
-      translatedData.formatting.forEach(page => {
-        page.forEach(item => {
-          doc
-            .font('Helvetica')
-            .fontSize(item.fontSize || 12)
-            .text(item.text, item.x, item.y, {
-              width: item.width,
-              height: item.height,
-              align: 'left'
-            });
-        });
-        doc.addPage();
-      });
-    } else {
-      // Простой вывод текста без форматирования
-      doc
-        .font('Helvetica')
-        .fontSize(12)
-        .text(translatedData.translatedText);
+  async generate(content, format, outputPath) {
+    if (!this.formats.has(format)) {
+      throw new Error(`Unsupported format: ${format}`);
     }
 
-    doc.end();
-
-    stream.on('finish', () => {
-      resolve(outputPath);
-    });
-
-    stream.on('error', reject);
-  });
-}
-
-async function generateDOCX(translatedData, outputPath) {
-  const doc = new Document({
-    sections: [{
-      properties: {},
-      children: [
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: translatedData.translatedText,
-              size: 24 // 12pt
-            })
-          ]
-        })
-      ]
-    }]
-  });
-
-  const buffer = await doc.save();
-  await fs.writeFile(outputPath, buffer);
-  return outputPath;
-}
-
-async function generateDocument(translatedData, outputPath, outputFormat) {
-  try {
-    if (outputFormat === 'pdf') {
-      return await generatePDF(translatedData, outputPath);
-    } else {
-      return await generateDOCX(translatedData, outputPath);
+    switch (format) {
+      case 'pdf':
+        return await this.generatePdf(content, outputPath);
+      case 'docx':
+        return await this.generateDocx(content, outputPath);
+      default:
+        throw new Error('Unsupported format');
     }
-  } catch (error) {
-    console.error('Error generating document:', error);
-    throw error;
+  }
+
+  async generatePdf(content, outputPath) {
+    // Реализация генерации PDF
+    throw new Error('PDF generation not implemented');
+  }
+
+  async generateDocx(content, outputPath) {
+    // Реализация генерации DOCX
+    throw new Error('DOCX generation not implemented');
   }
 }
 
-module.exports = {
-  generateDocument
-};
+module.exports = DocumentGenerator;
