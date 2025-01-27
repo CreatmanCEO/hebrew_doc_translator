@@ -1,3 +1,9 @@
+/**
+ * ESLint конфигурация для Hebrew Document Translator
+ * Версия: 1.0.0
+ * Дата: 27.01.2025
+ */
+
 module.exports = {
   env: {
     node: true,
@@ -27,39 +33,31 @@ module.exports = {
   },
   overrides: [
     {
-      // Тестовые файлы
+      // Тестовые и конфигурационные файлы с ES модулями
       files: [
         'tests/**/*.js',
         'test/**/*.js',
         '**/*.test.js',
         '**/*.spec.js',
-        'tests/setup.js'
-      ],
-      rules: {
-        'node/no-unpublished-require': 'off',
-        'node/no-unpublished-import': 'off'
-      },
-      env: {
-        jest: true,
-        mocha: true,
-      },
-    },
-    {
-      // Конфигурационные файлы
-      files: [
+        'tests/setup.js',
         '*.config.js',
         '.eslintrc.js',
         'vitest.*.js',
         'playwright.*.js'
       ],
       rules: {
-        'node/no-unpublished-import': 'off',
         'node/no-unpublished-require': 'off',
+        'node/no-unpublished-import': 'off',
         'node/no-unsupported-features/es-syntax': 'off',
         'node/no-missing-import': 'off'
       },
+      env: {
+        jest: true,
+        mocha: true,
+      },
       parserOptions: {
-        sourceType: 'module'
+        sourceType: 'module',
+        ecmaVersion: 'latest'
       }
     }
   ]
