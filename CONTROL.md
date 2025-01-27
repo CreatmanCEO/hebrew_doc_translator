@@ -8,136 +8,161 @@ Web application for translating documents from Hebrew to Russian and English whi
 **Last Update:** 27.01.2025  
 **Status:** Active Development
 
-## Recent Changes
+## Recent Changes & Plans
 
 ### Latest Updates (27.01.2025)
-1. CI/CD Setup Progress:
-   - ✓ Template literals syntax in server/index.js
-   - ✓ Bull queue configuration
-   - ✓ Dependencies update
-   - ✓ Graceful shutdown implementation
-   - ⧖ Remaining linter errors
+1. Translation Service Upgrade:
+   - ✓ Replaced deprecated google-translate-api-free
+   - ✓ Integrated hebrew-transliteration@2.7.0
+   - ✓ Added @vitalets/google-translate-api
+   - ✓ Implemented rate limiting
+   - ✓ Added batch processing for documents
 
-2. Core Changes:
-   - Updated dependencies for CI/CD
-   - Implemented modern shutdown handling
-   - Fixed npm packages configuration
+2. CI/CD Progress:
+   - ✓ Fixed template literals syntax
+   - ✓ Updated dependencies
+   - ✓ Implemented graceful shutdown
+   - ⧖ Remaining linter fixes
 
-### Next Steps
-- Finish linter error fixes
+### Next Tasks
+- Complete remaining linter fixes
 - Setup GitHub Actions workflow
-- Configure automated testing
+- Implement automated testing
+- Add translation quality monitoring
 
-## Architecture
+## Project Structure
 
-### Backend (Node.js + Express)
-#### Core Services
-```
-DocumentAnalyzer    - Document analysis
-LayoutExtractor    - Layout extraction
-TextExtractor      - Text/OCR processing
-Translator         - Translation service
-DocumentGenerator  - Document generation
-```
+### Core Components
+```javascript
+Backend:
+└── server/
+    ├── api/              // API endpoints
+    ├── services/         // Core services
+    │   ├── Translator   // Translation with batching & rate limiting
+    │   ├── DocumentProcessor
+    │   └── LayoutExtractor
+    ├── middleware/      // Express middleware
+    └── index.js         // Main server file
 
-#### API Endpoints
-```
-POST /api/translate      - Submit document
-GET /api/status/:jobId   - Check status
-GET /api/download/:jobId - Get result
-```
-
-### Frontend (React)
-#### Components
-```
-DocumentUpload      - File upload handling
-DocumentPreview     - Document preview
-TranslationProgress - Progress tracking
+Frontend:
+└── client/
+    └── src/
+        ├── components/  // React components
+        └── services/    // API integration
 ```
 
-## CI/CD Pipeline (In Progress)
-
-### Current Stack
+### Translation Pipeline
 ```
-Testing:
-- Jest (Unit)
-- Vitest (Integration)
-- Playwright (E2E)
-
-Linting:
-- ESLint
-- Prettier
-
-Building:
-- npm scripts
-- GitHub Actions
+Input Document → Document Processor → Text Extraction →
+Hebrew Transliteration → Translation API → Layout Restoration → Output
 ```
 
-### Workflow Steps
-1. Code Validation:
-   - Linting checks
-   - Type checking
-   - Unit tests
-2. Build process
-3. Integration tests
-4. Deployment (if tests pass)
+### Translation Features
+- Hebrew text preprocessing with hebrew-transliteration
+- Rate-limited free translation API (@vitalets/google-translate-api)
+- Batch processing for large documents
+- Error handling and retries
+- Quality preservation for Hebrew-specific content
 
-## Dependencies
+## Technical Details
 
-### Core
-```
-Runtime:
-- Node.js >= 18.0.0
-- Redis (Queue)
+### Translation Service
+```javascript
+Capabilities:
+- Hebrew → English/Russian
+- English/Russian → Hebrew
+- Mixed content handling
+- Formatting preservation
 
-NPM Packages:
-- bull: ^4.12.0
-- express: ^4.18.2
-- @azure/ai-translator: ^1.1.0
-- mammoth: ^1.6.0
-- pdf.js-extract: ^0.2.1
+Limitations:
+- 100 requests/minute (rate limiting)
+- Maximum batch size: 10 blocks
+- Free API constraints
 ```
 
-### Development
-```
-- eslint + configs
-- prettier
-- jest/vitest
-- github actions
-```
+### Dependencies
+```json
+Core:
+  "@vitalets/google-translate-api": "^9.2.0",
+  "hebrew-transliteration": "^2.7.0",
+  "bull": "^4.12.0",
+  "express": "^4.18.2"
 
-## Known Issues
-1. File size limit (10MB)
-2. Scan quality requirements
-3. Large document processing time
-
-## Deployment
-```bash
-# Setup
-git clone <repo>
-npm install
-cp .env.example .env
-
-# Development
-npm run dev:full
-
-# Testing
-npm run test:all
+Development:
+  "vitest": "^3.0.0",
+  "eslint": "^8.56.0"
 ```
 
-## Current Linter Issues
-1. ✓ server/index.js - Fixed
-2. ⧖ documentProcessor.js - Module imports
-3. ⧖ services/* - Unused variables
+## API Documentation
+
+### Endpoints
+```
+POST /api/translate
+- Accepts: PDF, DOCX
+- Returns: Job ID for tracking
+
+GET /api/status/:jobId
+- Returns: Translation progress
+
+GET /api/download/:jobId
+- Returns: Translated document
+```
+
+### Example Usage
+```javascript
+// Translation service usage
+const translator = new Translator();
+const result = await translator.translateText(
+  'שָׁלוֹם',
+  'he',
+  'en'
+);
+```
+
+## Development Workflow
+1. Code changes in feature branches
+2. ESLint validation
+3. Tests (unit, integration)
+4. PR review
+5. Main branch merge
+
+## Known Issues & Limitations
+1. File size limit: 10MB
+2. Rate limiting: 100 req/min
+3. API stability depends on Google
+4. Processing time for large docs
+
+## Testing Strategy
+```javascript
+Unit Tests:
+- Translation service
+- Document processing
+- Rate limiting
+
+Integration Tests:
+- Full translation pipeline
+- API endpoints
+- Error scenarios
+```
+
+## Error Handling
+```javascript
+Categories:
+1. Rate limiting errors
+2. Translation API errors
+3. Hebrew text processing
+4. Document format errors
+```
 
 ## Change History
 
 ### 27.01.2025
-- CI/CD setup progress
-- Linter fixes
-- Dependency updates
+- Upgraded translation service
+- Implemented rate limiting
+- Added Hebrew preprocessing
+- Fixed CI/CD issues
 
 ### 26.01.2025
 - Project initialization
-- Basic structure
+- Basic structure setup
 - Development process setup
