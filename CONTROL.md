@@ -4,96 +4,145 @@
 Web application for translating documents from Hebrew to Russian and English while preserving original formatting and handling mixed content.
 
 ## Project Status
-**Current Stage:** CI/CD Setup with GitHub Actions  
-**Last Update:** 27.01.2025  
+**Current Stage:** CI/CD Implementation  
+**Last Update:** 31.01.2025  
 **Status:** Active Development
 
-## Recent Changes & Plans
+## Recent Changes
 
-### Latest Updates (27.01.2025)
-1. Fixed Development Infrastructure:
-   - ✓ ESLint configuration updated
-   - ✓ Modern JS/ES modules support
-   - ✓ Test environment setup
-   - ✓ Translation service upgrade
-   - ⧖ GitHub Actions setup
+### Latest Updates (31.01.2025)
+1. GitHub Actions Setup:
+   - ✓ Main CI workflow
+   - ✓ Code quality checks
+   - ✓ Automated testing
+   - ✓ Security scanning
+   - ⧖ Deployment setup
 
-2. Translation Features:
-   - ✓ Hebrew Transliteration (v2.7.0)
-   - ✓ Rate limiting implementation
-   - ✓ Batch processing for documents
-   - ✓ Error handling system
+2. CI Pipeline Features:
+   - Node.js 18.x environment
+   - Redis service container
+   - Parallel test execution
+   - Artifact storage
+   - CodeQL security analysis
 
-### Upcoming Tasks
-- Complete GitHub Actions workflow
-- Set up automated testing
-- Add quality monitoring
+### Previous Updates (27.01.2025)
+1. Development Setup:
+   - ✓ ESLint configuration
+   - ✓ Modern JS support
+   - ✓ Testing environment
+   - ✓ Translation service
 
-## Project Architecture
+## Project Structure
 
-### Structure
+### Repository Organization
 ```
 hebrew-doc-translator/
-├── server/
-│   ├── api/
-│   │   └── translate.js       # Translation endpoint
-│   ├── services/
-│   │   ├── DocumentGenerator  # Output generation
-│   │   ├── LayoutExtractor   # Format preservation
-│   │   └── Translator        # Translation logic
-│   ├── middleware/
-│   │   ├── errorHandler.js
-│   │   └── fileValidation.js # Using mime-types
-│   └── index.js              # Express setup
-├── client/                   # React frontend
-└── tests/                   # ES modules enabled
+├── .github/
+│   └── workflows/
+│       └── ci.yml          # Main CI workflow
+├── server/                 # Backend services
+├── client/                # React frontend
+└── tests/                # Test suites
 ```
 
-### Core Features
-```javascript
-Translation Pipeline:
-Doc → Extract → Transliterate → Translate → Format → Output
+### CI/CD Pipeline
+```yaml
+Triggers:
+  Push: [main, develop, feature/**]
+  PR: [main, develop]
 
-Supported Formats:
-- Input: PDF, DOCX
-- Output: Same as input
-- Mixed content handling
-
-Rate Limiting:
-- 100 requests/minute
-- Batch size: 10 blocks
-- Auto-recovery
+Jobs:
+1. Code Quality:
+   - ESLint
+   - Prettier
+   
+2. Testing:
+   - Unit tests
+   - Integration tests
+   - E2E (Playwright)
+   
+3. Security:
+   - npm audit
+   - CodeQL
+   - Snyk scan
+   
+4. Build:
+   - Production build
+   - Artifact storage
 ```
 
-## Technical Stack
+### Development Workflow
+```
+1. Feature Branch:
+   - Create from develop
+   - Run local tests
+   - Push triggers CI
 
-### Backend Services
+2. CI Process:
+   - Code validation
+   - Test execution
+   - Security checks
+   - Build verification
+
+3. Deployment:
+   - Staging (develop)
+   - Production (main)
+```
+
+## Core Features
+
+### Translation Service
 ```javascript
-Translation:
-- hebrew-transliteration: "^2.7.0"
-- Rate limiting & batching
-- Format preservation
+Pipeline:
+Doc → Extract → Translate → Format → Output
 
-Document Processing:
+Components:
+- hebrew-transliteration (2.7.0)
+- Rate limiting
+- Batch processing
+```
+
+### Document Processing
+```javascript
+Supported:
 - PDF: pdf.js-extract
 - DOCX: mammoth
-- Mime detection: mime-types
+- MIME: mime-types
+
+Features:
+- Format preservation
+- Mixed content
+- Error handling
 ```
 
-### Development Tools
+## Development Tools
+
+### Testing Stack
 ```javascript
-Testing:
-- Vitest + ESM support
-- Jest for integration
-- Playwright for E2E
+Framework:
+- Vitest (Unit/Integration)
+- Playwright (E2E)
+- Jest (Legacy support)
 
-Linting:
-- ESLint with modern config
-- Support for ES modules
-- Custom rules for tests
+Coverage:
+- Reports in CI artifacts
+- Minimum 80% required
 ```
 
-## API Documentation
+### Quality Tools
+```yaml
+Linting:
+- ESLint + Modern config
+- Prettier formatting
+- Custom overrides
+
+Security:
+- CodeQL scanning
+- Dependency audit
+- Snyk integration
+```
+
+## API Reference
 
 ### Endpoints
 ```http
@@ -102,38 +151,19 @@ GET /api/status/:jobId
 GET /api/download/:jobId
 ```
 
-### Development Guidelines
-```javascript
-// ES Modules in Tests
-import { expect } from 'vitest'
-import { render } from '@testing-library/react'
-
-// CommonJS in Core
-const express = require('express')
-```
-
-## Error Handling
-```javascript
-Categories:
-1. API limits
-2. File processing
-3. Translation errors
-4. Format issues
-```
-
 ## Known Issues
-1. Max file size: 10MB
+1. File size: 10MB limit
 2. Rate limits: 100 req/min
 3. Processing delays
 
 ## Change History
 
-### 27.01.2025
-- ESLint modern config
-- Translation upgrades
-- Test environment fixes
+### 31.01.2025
+- GitHub Actions CI setup
+- Security scanning
+- Test automation
 
-### 26.01.2025
-- Project init
-- Base structure
-- Dev setup
+### 27.01.2025
+- ESLint configuration
+- Translation upgrades
+- Modern JS support
