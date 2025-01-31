@@ -4,152 +4,122 @@
 Web application for translating documents from Hebrew to Russian and English while preserving original formatting and handling mixed content.
 
 ## Project Status
-**Current Stage:** CI/CD Implementation  
+**Current Stage:** Testing Implementation  
 **Last Update:** 31.01.2025  
 **Status:** Active Development
 
 ## Recent Changes
 
 ### Latest Updates (31.01.2025)
-1. GitHub Actions Setup:
-   - ✓ Main CI workflow
-   - ✓ Code quality checks
-   - ✓ Automated testing
-   - ✓ Security scanning
-   - ⧖ Deployment setup
+1. Testing Setup:
+   - ✓ Translation service tests
+   - ✓ CI/CD pipeline
+   - ✓ Automated testing config
+   - ⧖ Document processing tests
+   - ⧖ Integration tests
 
-2. CI Pipeline Features:
-   - Node.js 18.x environment
-   - Redis service container
-   - Parallel test execution
-   - Artifact storage
-   - CodeQL security analysis
+2. Test Coverage:
+   ```
+   Results stored in:
+   - ./coverage/         # Local reports
+   - GitHub Actions     # CI reports
+   - Console output    # Real-time results
+   ```
 
-### Previous Updates (27.01.2025)
-1. Development Setup:
-   - ✓ ESLint configuration
-   - ✓ Modern JS support
-   - ✓ Testing environment
-   - ✓ Translation service
+3. Test Categories:
+   ```
+   Unit Tests:
+   - Translation core
+   - Hebrew processing
+   - Rate limiting
+   
+   Integration:
+   - Full document flow
+   - Mixed content
+   - Format preservation
+   ```
 
-## Project Structure
+## Development Process
 
-### Repository Organization
+### Testing Workflow
+```bash
+Local Development:
+npm test           # Run all tests
+npm run test:watch # Development mode
+npm run test:coverage # Coverage report
+
+CI/CD Pipeline:
+- Automatic on PR
+- Required for merge
+- Results in GitHub
+```
+
+### Project Structure
 ```
 hebrew-doc-translator/
+├── server/
+│   ├── services/
+│   │   └── Translator.js     # Translation service
+├── tests/
+│   ├── services/
+│   │   └── Translator.test.js # Service tests
+│   └── coverage/              # Test reports
 ├── .github/
 │   └── workflows/
-│       └── ci.yml          # Main CI workflow
-├── server/                 # Backend services
-├── client/                # React frontend
-└── tests/                # Test suites
-```
-
-### CI/CD Pipeline
-```yaml
-Triggers:
-  Push: [main, develop, feature/**]
-  PR: [main, develop]
-
-Jobs:
-1. Code Quality:
-   - ESLint
-   - Prettier
-   
-2. Testing:
-   - Unit tests
-   - Integration tests
-   - E2E (Playwright)
-   
-3. Security:
-   - npm audit
-   - CodeQL
-   - Snyk scan
-   
-4. Build:
-   - Production build
-   - Artifact storage
-```
-
-### Development Workflow
-```
-1. Feature Branch:
-   - Create from develop
-   - Run local tests
-   - Push triggers CI
-
-2. CI Process:
-   - Code validation
-   - Test execution
-   - Security checks
-   - Build verification
-
-3. Deployment:
-   - Staging (develop)
-   - Production (main)
+│       ├── ci.yml            # CI pipeline
+│       └── deploy.yml        # Deployment
 ```
 
 ## Core Features
 
 ### Translation Service
 ```javascript
-Pipeline:
-Doc → Extract → Translate → Format → Output
-
-Components:
-- hebrew-transliteration (2.7.0)
+Features tested:
+- Hebrew text handling
+- Mixed content support
 - Rate limiting
-- Batch processing
-```
-
-### Document Processing
-```javascript
-Supported:
-- PDF: pdf.js-extract
-- DOCX: mammoth
-- MIME: mime-types
-
-Features:
-- Format preservation
-- Mixed content
 - Error handling
 ```
 
-## Development Tools
-
-### Testing Stack
+### Testing Tools
 ```javascript
 Framework:
-- Vitest (Unit/Integration)
-- Playwright (E2E)
-- Jest (Legacy support)
+Vitest 3.0.0
+- Fast execution
+- ES modules support
+- Real-time feedback
 
 Coverage:
-- Reports in CI artifacts
-- Minimum 80% required
+- Code coverage reports
+- Branch coverage
+- Function coverage
 ```
 
-### Quality Tools
-```yaml
-Linting:
-- ESLint + Modern config
-- Prettier formatting
-- Custom overrides
+## Development Guidelines
 
-Security:
-- CodeQL scanning
-- Dependency audit
-- Snyk integration
+### Running Tests
+```bash
+# Local testing
+npm test              # All tests
+npm run test:watch    # Development
+npm run test:coverage # Coverage
+
+# CI/CD testing
+Automatic on:
+- Pull requests
+- Main branch pushes
 ```
 
-## API Reference
+### Test Report Locations
+1. Local Development:
+   - ./coverage/ directory
+   - Console output
+   - Vitest UI (optional)
 
-### Endpoints
-```http
-POST /api/translate
-GET /api/status/:jobId
-GET /api/download/:jobId
-```
+2. CI/CD Pipeline:
+   - GitHub Actions artifacts
+   - PR comments
+   - Status checks
 
 ## Known Issues
 1. File size: 10MB limit
@@ -159,11 +129,11 @@ GET /api/download/:jobId
 ## Change History
 
 ### 31.01.2025
-- GitHub Actions CI setup
-- Security scanning
-- Test automation
+- Added comprehensive tests
+- Setup test automation
+- CI/CD implementation
 
 ### 27.01.2025
 - ESLint configuration
-- Translation upgrades
+- Translation service
 - Modern JS support
