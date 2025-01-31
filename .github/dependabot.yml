@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # Поддержка npm зависимостей
+  # Проверка npm зависимостей
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
@@ -9,22 +9,30 @@ updates:
       time: "09:00"
       timezone: "UTC"
     open-pull-requests-limit: 10
-    target-branch: "develop"
+    versioning-strategy: increase
     labels:
       - "dependencies"
-      - "security"
-    ignore:
-      # Игнорируем major обновления для стабильности
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
+      - "npm"
     commit-message:
       prefix: "chore"
-      prefix-development: "chore"
       include: "scope"
     reviewers:
       - "CreatmanCEO"
-    
-  # Поддержка GitHub Actions
+    groups:
+      dev-dependencies:
+        patterns:
+          - "*eslint*"
+          - "*prettier*"
+          - "*test*"
+      production-dependencies:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "*eslint*"
+          - "*prettier*"
+          - "*test*"
+
+  # Проверка GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -32,11 +40,11 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "UTC"
-    open-pull-requests-limit: 10
-    target-branch: "develop"
     labels:
       - "dependencies"
       - "github-actions"
     commit-message:
-      prefix: "ci"
+      prefix: "chore"
       include: "scope"
+    reviewers:
+      - "CreatmanCEO"
