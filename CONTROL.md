@@ -4,136 +4,186 @@
 Web application for translating documents from Hebrew to Russian and English while preserving original formatting and handling mixed content.
 
 ## Project Status
-**Current Stage:** Testing Implementation  
-**Last Update:** 31.01.2025  
+**Current Stage:** CI/CD Setup & Testing  
+**Last Update:** 01.02.2025  
 **Status:** Active Development
 
 ## Recent Changes
 
-### Latest Updates (31.01.2025)
-1. Testing Setup:
-   - ✓ Translation service tests
-   - ✓ CI/CD pipeline
-   - ✓ Automated testing config
-   - ⧖ Document processing tests
-   - ⧖ Integration tests
+### Latest Updates (01.02.2025)
+1. Testing Infrastructure:
+   - ✓ Unit tests for Translation service
+   - ✓ Mixed content handling tests
+   - ✓ Rate limiting tests
+   - ✓ Error handling tests
 
-2. Test Coverage:
-   ```
-   Results stored in:
-   - ./coverage/         # Local reports
-   - GitHub Actions     # CI reports
-   - Console output    # Real-time results
-   ```
+2. Core Features:
+   ```javascript
+   Translation Service:
+   - Hebrew text preprocessing
+   - Mixed content support
+   - Rate limiting (100 req/min)
+   - Error handling
 
-3. Test Categories:
-   ```
-   Unit Tests:
-   - Translation core
-   - Hebrew processing
-   - Rate limiting
-   
-   Integration:
-   - Full document flow
-   - Mixed content
+   Content Processing:
+   - File type validation
    - Format preservation
+   - Batch processing
    ```
 
-## Development Process
+3. Development Setup:
+   ```javascript
+   Test Environment:
+   - Vitest 1.6.0 (test runner)
+   - Node environment
+   - 20s timeout
+   - Coverage reporting
+   ```
 
-### Testing Workflow
-```bash
-Local Development:
-npm test           # Run all tests
-npm run test:watch # Development mode
-npm run test:coverage # Coverage report
+## Code Structure
 
-CI/CD Pipeline:
-- Automatic on PR
-- Required for merge
-- Results in GitHub
-```
-
-### Project Structure
-```
-hebrew-doc-translator/
-├── server/
-│   ├── services/
-│   │   └── Translator.js     # Translation service
-├── tests/
-│   ├── services/
-│   │   └── Translator.test.js # Service tests
-│   └── coverage/              # Test reports
-├── .github/
-│   └── workflows/
-│       ├── ci.yml            # CI pipeline
-│       └── deploy.yml        # Deployment
-```
-
-## Core Features
-
-### Translation Service
+### Core Services
 ```javascript
-Features tested:
-- Hebrew text handling
-- Mixed content support
+server/
+├── services/
+│   ├── Translator.js         // Translation service
+│   ├── DocumentGenerator.js  // Output generation
+│   └── LayoutExtractor.js    // Format handling
+├── middleware/
+│   ├── fileValidation.js    // MIME validation
+│   └── errorHandler.js      // Error processing
+└── api/
+    └── translate.js         // API endpoints
+```
+
+### Test Structure
+```javascript
+tests/
+├── services/               // Service tests
+│   └── Translator.test.js
+├── unit/                  // Unit tests
+│   └── services/
+├── integration/           // Integration tests
+└── setup.js              // Test configuration
+```
+
+## Implementation Details
+
+### Translation Pipeline
+```javascript
+1. Input Processing:
+   - File validation (MIME types)
+   - Text extraction
+   - Hebrew detection
+
+2. Translation:
+   - Rate limit check
+   - Hebrew transliteration
+   - Mixed content handling
+   
+3. Output Generation:
+   - Format preservation
+   - Batch processing
+   - Error handling
+```
+
+### Rate Limiting
+```javascript
+Configuration:
+- 100 tokens per minute
+- Auto-refill mechanism
+- Batch delay: 1s (prod) / 100ms (test)
+
+Error Handling:
+- Translation errors
+- API errors
+- Rate limit errors
+```
+
+### Testing Coverage
+```javascript
+Current Status:
+✓ 14 tests passing
+× 4 tests failing
+
+Areas Covered:
+- Basic translation
+- Mixed content
 - Rate limiting
-- Error handling
-```
-
-### Testing Tools
-```javascript
-Framework:
-Vitest 3.0.0
-- Fast execution
-- ES modules support
-- Real-time feedback
-
-Coverage:
-- Code coverage reports
-- Branch coverage
-- Function coverage
+- Error scenarios
 ```
 
 ## Development Guidelines
 
 ### Running Tests
 ```bash
-# Local testing
-npm test              # All tests
-npm run test:watch    # Development
-npm run test:coverage # Coverage
+# Basic test run
+npm test
 
-# CI/CD testing
-Automatic on:
-- Pull requests
-- Main branch pushes
+# Watch mode
+npm run test:watch
+
+# Coverage report
+npm run test:coverage
 ```
 
-### Test Report Locations
-1. Local Development:
-   - ./coverage/ directory
-   - Console output
-   - Vitest UI (optional)
-
-2. CI/CD Pipeline:
-   - GitHub Actions artifacts
-   - PR comments
-   - Status checks
+### Test Configuration
+```javascript
+vitest.config.js:
+{
+  environment: 'node',
+  testTimeout: 20000,
+  coverage: {
+    reporter: ['text', 'html'],
+    include: ['server/**/*.js']
+  }
+}
+```
 
 ## Known Issues
-1. File size: 10MB limit
-2. Rate limits: 100 req/min
-3. Processing delays
+
+### Translation Service
+1. Mixed content handling needs improvement
+   - Hebrew/non-Hebrew separation
+   - Transliteration accuracy
+
+2. Rate Limiting
+   - Token recovery timing
+   - Test timeouts
+
+3. Error Handling
+   - API error messages
+   - Error propagation
+
+## Upcoming Tasks
+1. Fix remaining test failures:
+   - Mixed content preservation
+   - Rate limit recovery
+   - Error message consistency
+
+2. CI/CD Pipeline:
+   - GitHub Actions setup
+   - Automated testing
+   - Deployment configuration
+
+3. Monitoring:
+   - Error tracking
+   - Performance metrics
+   - API usage stats
 
 ## Change History
 
+### 01.02.2025
+- Added comprehensive test suite
+- Improved translation service
+- Updated test configuration
+
 ### 31.01.2025
-- Added comprehensive tests
-- Setup test automation
 - CI/CD implementation
+- Test environment setup
+- ESLint configuration
 
 ### 27.01.2025
-- ESLint configuration
-- Translation service
-- Modern JS support
+- Initial test setup
+- Code structure improvement
+- Project initialization
