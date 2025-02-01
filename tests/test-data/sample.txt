@@ -1,0 +1,8 @@
+שלום וברוכים הבאים!
+זהו קובץ בדיקה פשוט.
+
+Hello and welcome!
+This is a mixed content test file.
+
+12345 - מספרים
+!@#$ - סימנים מיוחדים
