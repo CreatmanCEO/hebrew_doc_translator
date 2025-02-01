@@ -1,4 +1,4 @@
-const translate = require('@vitalets/google-translate-api');
+const translate = require('@vitalets/google-translate-api').translate;
 const { transliterate } = require('hebrew-transliteration');
 
 class Translator {
@@ -13,33 +13,38 @@ class Translator {
   }
 
   async translateText(text, from, to) {
+    if (!text || typeof text !== 'string') {
+      throw new Error('Translation failed: Invalid input text');
+    }
+
     if (!this.supportedLanguages.includes(from) || !this.supportedLanguages.includes(to)) {
       throw new Error('Unsupported language combination');
     }
 
-    // Обработка иврита с помощью hebrew-transliteration
-    let processedText = text;
-    if (from === 'he') {
-      // Предобработка иврита для лучшего качества перевода
-      processedText = transliterate(text, {
-        qametsQatan: true,
-        strict: true
-      });
-    }
-
     try {
       await this._checkRateLimit();
-      const result = await translate(processedText, { from, to });
-      
-      // Пост-обработка для перевода на иврит
-      if (to === 'he') {
-        // TODO: Добавить специфичную обработку для перевода на иврит
-        // Например, корректировка огласовок, направления текста и т.д.
+
+      // Предобработка текста на иврите
+      let processedText = text;
+      if (from === 'he') {
+        try {
+          processedText = transliterate(text);
+        } catch (error) {
+          console.warn('Hebrew transliteration failed:', error);
+          // Продолжаем с оригинальным текстом если транслитерация не удалась
+        }
       }
 
+      const result = await translate(processedText, { 
+        from, 
+        to,
+        tld: "com",
+        client: "dict-chrome-ex"
+      });
+      
       return result.text;
     } catch (error) {
-      if (error.name === 'TooManyRequestsError') {
+      if (error.message === 'Rate limit exceeded') {
         throw new Error('Translation rate limit exceeded. Please try again later.');
       }
       throw new Error(`Translation failed: ${error.message}`);
@@ -47,9 +52,9 @@ class Translator {
   }
 
   async translateDocument(blocks, targetLang) {
+    const batchSize = 10;
     const translatedBlocks = [];
     let currentBatch = [];
-    const batchSize = 10; // Оптимальный размер пакета
 
     for (const block of blocks) {
       if (block.type === 'text') {
@@ -59,6 +64,9 @@ class Translator {
           const translatedBatch = await this._translateBatch(currentBatch, targetLang);
           translatedBlocks.push(...translatedBatch);
           currentBatch = [];
+          
+          // Добавляем задержку между батчами
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       } else {
         if (currentBatch.length > 0) {
@@ -70,7 +78,6 @@ class Translator {
       }
     }
 
-    // Обработка оставшихся блоков
     if (currentBatch.length > 0) {
       const translatedBatch = await this._translateBatch(currentBatch, targetLang);
       translatedBlocks.push(...translatedBatch);
@@ -81,12 +88,17 @@ class Translator {
 
   async _translateBatch(blocks, targetLang) {
     const promises = blocks.map(async (block) => {
-      const translatedText = await this.translateText(block.content, block.language, targetLang);
-      return {
-        ...block,
-        content: translatedText,
-        originalContent: block.content
-      };
+      try {
+        const translatedText = await this.translateText(block.content, block.language, targetLang);
+        return {
+          ...block,
+          content: translatedText,
+          originalContent: block.content
+        };
+      } catch (error) {
+        console.error(`Failed to translate block: ${error.message}`);
+        return block; // Возвращаем оригинальный блок в случае ошибки
+      }
     });
 
     return Promise.all(promises);
@@ -103,7 +115,7 @@ class Translator {
     }
 
     if (this.rateLimiter.tokens < 1) {
-      throw new Error('TooManyRequestsError');
+      throw new Error('Rate limit exceeded');
     }
 
     this.rateLimiter.tokens--;
