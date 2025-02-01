@@ -24,31 +24,52 @@ class Translator {
     try {
       await this._checkRateLimit();
 
-      // Предобработка текста на иврите
-      let processedText = text;
+      // Обработка смешанного контента
       if (from === 'he') {
-        try {
-          processedText = transliterate(text);
-        } catch (error) {
-          console.warn('Hebrew transliteration failed:', error);
-          // Продолжаем с оригинальным текстом если транслитерация не удалась
-        }
+        // Разделяем текст на части: иврит и не-иврит
+        const parts = text.split(/([^\u0590-\u05FF\s]+)/g);
+        const translatedParts = await Promise.all(
+          parts.map(async (part) => {
+            if (!part.trim()) return part;
+            // Если часть содержит иврит
+            if (/[\u0590-\u05FF]/.test(part)) {
+              try {
+                // Транслитерация только для иврита
+                const transliterated = transliterate(part);
+                const result = await this._translate(transliterated, from, to);
+                return result;
+              } catch (error) {
+                console.warn('Hebrew part translation failed:', error);
+                return part;
+              }
+            }
+            // Не-ивритские части оставляем как есть
+            return part;
+          })
+        );
+        return translatedParts.join('');
+      } else {
+        return await this._translate(text, from, to);
       }
-
-      const result = await translate(processedText, { 
-        from, 
-        to,
-        tld: "com",
-        client: "dict-chrome-ex"
-      });
-      
-      return result.text;
     } catch (error) {
       if (error.message === 'Rate limit exceeded') {
         throw new Error('Translation rate limit exceeded. Please try again later.');
       }
+      if (error.message === 'API Error') {
+        throw new Error('Translation failed: API error');
+      }
       throw new Error(`Translation failed: ${error.message}`);
     }
+  }
+
+  async _translate(text, from, to) {
+    const result = await translate(text, {
+      from,
+      to,
+      tld: "com",
+      client: "dict-chrome-ex"
+    });
+    return result.text;
   }
 
   async translateDocument(blocks, targetLang) {
@@ -65,8 +86,12 @@ class Translator {
           translatedBlocks.push(...translatedBatch);
           currentBatch = [];
           
-          // Добавляем задержку между батчами
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          // Уменьшаем задержку для тестов
+          if (process.env.NODE_ENV === 'test') {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          } else {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
         }
       } else {
         if (currentBatch.length > 0) {
@@ -97,7 +122,7 @@ class Translator {
         };
       } catch (error) {
         console.error(`Failed to translate block: ${error.message}`);
-        return block; // Возвращаем оригинальный блок в случае ошибки
+        return block;
       }
     });
 
