@@ -1,22 +1,29 @@
-import { vi, beforeAll, afterEach, afterAll } from 'vitest';
-import { __mockConfig } from '@vitalets/google-translate-api';
+import { vi } from 'vitest';
+import { mockConfig } from './__mocks__/translationService';
 
-// Настройка моков для всех тестов
-beforeAll(() => {
-  // Инициализация глобальных моков
-  vi.mock('@vitalets/google-translate-api');
-  vi.mock('hebrew-transliteration', () => ({
-    transliterate: (text) => text
-  }));
+// Определяем моки до импорта тестируемых модулей
+vi.mock('@vitalets/google-translate-api', () => {
+  return {
+    translate: vi.fn().mockImplementation(async (text, options) => {
+      // Импортируем реализацию мока динамически
+      const { translate } = await import('./__mocks__/translationService');
+      return translate(text, options);
+    })
+  };
 });
 
-// Сброс состояния моков после каждого теста
+vi.mock('hebrew-transliteration', () => {
+  return {
+    transliterate: vi.fn().mockImplementation((text) => {
+      // Импортируем реализацию мока динамически
+      const { transliterate } = require('./__mocks__/translationService');
+      return transliterate(text);
+    })
+  };
+});
+
+// Очистка состояния моков после каждого теста
 afterEach(() => {
-  __mockConfig.reset();
+  mockConfig.reset();
   vi.clearAllMocks();
-});
-
-// Очистка после всех тестов
-afterAll(() => {
-  vi.resetModules();
 });
