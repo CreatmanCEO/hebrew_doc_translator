@@ -1,12 +1,21 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import Translator from '../../../server/services/Translator';
-import { mockConfig } from '../../__mocks__/translationService';
+const { describe, it, expect, beforeEach, jest } = require('@jest/globals');
+const Translator = require('../../../server/services/Translator');
+const { mockState, translate, transliterate, resetState } = require('../../../server/services/__mocks__/translator-services');
+
+jest.mock('@vitalets/google-translate-api', () => ({
+  translate
+}));
+
+jest.mock('hebrew-transliteration', () => ({
+  transliterate
+}));
 
 describe('Translator Service', () => {
   let translator;
 
   beforeEach(() => {
     translator = new Translator();
+    resetState();
   });
 
   describe('Basic Translation', () => {
@@ -23,12 +32,12 @@ describe('Translator Service', () => {
 
   describe('Rate Limiting', () => {
     beforeEach(() => {
-      mockConfig.reset();
+      mockState.rateLimitExceeded = false;
     });
 
     it('должен ограничивать количество запросов', async () => {
-      mockConfig.setRateLimitExceeded(true);
-
+      mockState.rateLimitExceeded = true;
+      
       const promises = Array(10).fill(null).map(() => 
         translator.translateText('test', 'he', 'en')
       );
@@ -39,14 +48,17 @@ describe('Translator Service', () => {
     });
 
     it('должен восстанавливать токены со временем', async () => {
-      mockConfig.setDelay(50);
-      const text = 'test';
+      mockState.delay = 50;
+      
       const promises = Array(5).fill(null).map(() => 
-        translator.translateText(text, 'en', 'ru')
+        translator.translateText('test', 'en', 'ru')
       );
 
-      await expect(Promise.all(promises)).resolves.toBeDefined();
-    }, 10000); // Увеличиваем таймаут для этого теста
+      const results = await Promise.all(promises);
+      expect(results).toHaveLength(5);
+      
+      mockState.delay = 0;
+    }, 10000);
   });
 
   describe('Batch Processing', () => {
@@ -69,7 +81,7 @@ describe('Translator Service', () => {
 
   describe('Error Handling', () => {
     beforeEach(() => {
-      mockConfig.reset();
+      mockState.shouldFail = false;
     });
 
     it('должен обрабатывать неподдерживаемые языки', async () => {
@@ -79,7 +91,7 @@ describe('Translator Service', () => {
     });
 
     it('должен обрабатывать ошибки API', async () => {
-      mockConfig.setShouldFail(true);
+      mockState.shouldFail = true;
       
       await expect(
         translator.translateText('test', 'en', 'ru')
