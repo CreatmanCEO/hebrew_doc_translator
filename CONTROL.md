@@ -1,185 +1,175 @@
-# Переводчик документов с иврита - Контрольный журнал
+# Hebrew Document Translator - Development Control Log
 
-## Описание проекта
-Веб-приложение для перевода документов с иврита на русский и английский языки с сохранением оригинального форматирования и обработкой смешанного контента (текст на разных языках + изображения).
+## Project Overview
+Web application for translating documents from Hebrew to Russian and English while preserving original formatting and handling mixed content.
 
-## Основные возможности
-- Загрузка PDF и DOCX файлов
-- Определение языка текстовых блоков
-- Сохранение изображений и их позиционирования
-- Перевод только ивритского текста
-- Сохранение оригинального форматирования
-- Поддержка RTL/LTR
-- Предпросмотр документов
+## Project Status
+**Current Stage:** Testing & CI/CD Setup  
+**Last Update:** 01.02.2025  
+**Status:** Active Development
 
-## Архитектура решения
+## Recent Changes
 
-### Backend (РЕАЛИЗОВАНО)
+### Latest Updates (01.02.2025)
+1. Testing Infrastructure:
+   ```javascript
+   Core Changes:
+   - Improved test structure
+   - Mocking system refactored
+   - Jest configuration updated
+   ```
 
-#### Core Services
-1. **DocumentAnalyzer**
-   - Анализ структуры документов
-   - Извлечение метаданных
-   - Статус: Реализовано
-   - Файл: server/services/DocumentAnalyzer.js
+2. Mock System:
+   ```javascript
+   Features:
+   - Translation mocks
+   - Rate limiting simulation
+   - Error handling testing
+   ```
 
-2. **LayoutExtractor**
-   - Анализ разметки
-   - Построение иерархии документа
-   - Статус: Реализовано
-   - Файл: server/services/LayoutExtractor.js
+3. Test Improvements:
+   ```javascript
+   Coverage:
+   - Unit tests
+   - Integration tests
+   - Error scenarios
+   ```
 
-3. **TextExtractor**
-   - OCR для иврита
-   - Определение языка
-   - Извлечение изображений
-   - Статус: Реализовано
-   - Файл: server/services/TextExtractor.js
+## Development Structure
 
-4. **Translator**
-   - Перевод текстовых блоков
-   - Кэширование переводов
-   - Сохранение форматирования
-   - Статус: Реализовано
-   - Файл: server/services/Translator.js
+### Core Components
+```javascript
+server/
+├── services/
+│   ├── Translator.js          // Translation service
+│   ├── DocumentGenerator.js   // Output generation
+│   └── __mocks__/            // Service mocks
+├── api/
+└── middleware/
+```
 
-5. **DocumentGenerator**
-   - Генерация PDF/DOCX
-   - Поддержка RTL
-   - Вставка изображений
-   - Статус: Реализовано
-   - Файл: server/services/DocumentGenerator.js
+### Test Structure
+```javascript
+tests/
+├── unit/
+│   └── services/
+│       └── Translator.test.js
+├── integration/
+└── setup/
+```
 
-#### Модели данных
-1. **DocumentBlock**
-   - Представление блоков контента
-   - Поддержка текста и изображений
-   - Статус: Реализовано
-   - Файл: server/models/DocumentBlock.js
+## Implementation Details
 
-2. **LayoutInfo**
-   - Информация о разметке
-   - Метаданные документа
-   - Статус: Реализовано
-   - Файл: server/models/LayoutInfo.js
+### Translation Service
+```javascript
+Features:
+- Hebrew text handling
+- Rate limiting (100 req/min)
+- Batch processing
+- Error management
 
-### Frontend (РЕАЛИЗОВАНО)
+Testing:
+- Mocked API calls
+- Simulated delays
+- Error scenarios
+```
 
-#### Компоненты
-1. **DocumentUpload**
-   - Загрузка файлов через drag-n-drop
-   - Валидация типов и размера
-   - Визуальная обратная связь
-   - Статус: Реализовано
-   - Файл: client/src/components/DocumentUpload.js
+### Testing Coverage
+```javascript
+Unit Tests:
+- Basic translation
+- Rate limiting
+- Batch processing
+- Error handling
 
-2. **DocumentPreview**
-   - Предпросмотр PDF и DOCX
-   - Постраничная навигация
-   - RTL/LTR поддержка
-   - Адаптивный дизайн
-   - Статус: Реализовано
-   - Файл: client/src/components/DocumentPreview.js
+Integration Tests:
+- Full pipeline
+- Real-world scenarios
+```
 
-3. **TranslationProgress**
-   - Индикация этапов обработки
-   - Процент выполнения
-   - Обработка ошибок
-   - Детали процесса
-   - Статус: Реализовано
-   - Файл: client/src/components/TranslationProgress.js
+### Mock System
+```javascript
+Components:
+- Translation mocks
+- Hebrew transliteration
+- Rate limiting simulation
 
-4. **App**
-   - Основной компонент
-   - Управление состоянием
-   - API интеграция
-   - Выбор языка
-   - Статус: Реализовано
-   - Файл: client/src/App.js
+Configuration:
+- Custom responses
+- Delay simulation
+- Error injection
+```
 
-## API и Серверная часть (РЕАЛИЗОВАНО)
+## Current Tasks
 
-### API Endpoints
+### Testing
+1. Automated Tests:
+   - Unit tests
+   - Integration tests
+   - E2E setup
 
-1. **POST /api/translate**
-   - Загрузка и обработка документа
-   - Принимает: multipart/form-data (document, targetLanguage)
-   - Возвращает: { jobId, status, message }
-   - Запускает асинхронную обработку
+2. CI/CD Pipeline:
+   - GitHub Actions
+   - Test automation
+   - Deploy process
 
-2. **GET /api/status/:jobId**
-   - Получение статуса обработки
-   - Возвращает: { status, progress, step, details }
+3. Quality Control:
+   - Coverage reports
+   - Performance metrics
+   - Error tracking
 
-3. **GET /api/download/:jobId**
-   - Скачивание готового документа
-   - Возвращает: файл или ошибку
+## Development Guidelines
 
-### WebSocket События
+### Running Tests
+```bash
+# Full test suite
+npm run test:all
 
-1. **progressUpdate**
-   - Обновление прогресса обработки
-   - Данные: { jobId, progress, step, details }
+# Unit tests only
+npm test
 
-2. **processCompleted**
-   - Уведомление о завершении
-   - Данные: { jobId, result }
+# With coverage
+npm run test:coverage
+```
 
-3. **processError**
-   - Уведомление об ошибке
-   - Данные: { jobId, error }
+### Mock Usage
+```javascript
+// Configure mocks
+mockState.shouldFail = true;
+mockState.rateLimitExceeded = false;
 
-### Очередь Обработки
-- Bull queue для асинхронной обработки
-- Ограничение: 5 задач одновременно
-- Сохранение состояния в Redis
-- Очистка временных файлов
+// Reset state
+resetState();
 
-### Безопасность
-- Rate limiting: 100 запросов/15 минут
-- CORS защита
-- Helmet middleware
-- Валидация файлов
-- Очистка временных файлов
+// Custom responses
+addCustomResponse('key', 'value');
+```
 
-## Зависимости
+## Known Issues
 
-### Backend
-- express: ^4.18.2
-- multer: ^1.4.5-lts.1
-- pdf2json: ^2.0.2
-- docx4js: ^3.2.20
-- tesseract.js: ^5.0.3
-- google-translate-api-free: ^0.3.1
-- pdfkit: ^0.14.0
-- docx: ^8.5.0
-- bull: ^4.12.0
-- ioredis: ^5.3.2
-- socket.io: ^4.7.4
-- winston: ^3.11.0
-- franc: ^6.1.0
+### Testing
+1. Jest vs Vitest compatibility
+2. Mock system complexity
+3. Integration test setup
 
-### Frontend
-- @headlessui/react: ^1.7.18
-- @heroicons/react: ^2.1.1
-- axios: ^1.6.5
-- react-pdf: ^7.7.0
-- mammoth: ^1.6.0
-- docx-preview: ^0.1.19
-- tailwindcss: ^3.4.1
+### Translation
+1. Rate limit handling
+2. Error propagation
+3. Mock fidelity
 
-## Следующие шаги
-1. Тестирование
-   - [ ] Unit тесты компонентов
-   - [ ] Интеграционные тесты API
-   - [ ] E2E тесты процесса
+## Upcoming Tasks
+1. Complete testing setup
+2. Implement CI/CD
+3. Add monitoring
 
-2. Оптимизация
-   - [ ] Кэширование переводов
-   - [ ] Оптимизация очереди
-   - [ ] Мониторинг производительности
+## Change History
 
-3. Улучшения
-   - [ ] Поддержка пакетной обработки
-   - [ ] Улучшение качества OCR
-   - [ ] API для внешней интеграции
+### 01.02.2025
+- Test system refactored
+- Mock system improved
+- Coverage increased
+
+### 31.01.2025
+- Initial test setup
+- Mock system created
+- CI/CD started

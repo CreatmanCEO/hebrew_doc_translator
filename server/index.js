@@ -5,17 +5,18 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const winston = require('winston');
 require('dotenv').config();
 
 const { errorHandler } = require('./middleware/errorHandler');
 const ProgressTracker = require('./middleware/progressTracker');
 const translateRouter = require('./api/translate');
 
-// Создаем express приложение
+// Initialize Express app
 const app = express();
 const server = http.createServer(app);
 
-// Настраиваем Socket.IO
+// Configure Socket.IO
 const io = socketIO(server, {
   cors: {
     origin: process.env.CLIENT_URL || 'http://localhost:3000',
@@ -23,7 +24,7 @@ const io = socketIO(server, {
   }
 });
 
-// Базовые middleware
+// Basic middleware
 app.use(helmet());
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:3000',
@@ -35,58 +36,86 @@ app.use(express.urlencoded({ extended: true }));
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 минут
-  max: 100 // максимум 100 запросов с одного IP
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // limit each IP to 100 requests per windowMs
 });
 app.use(limiter);
 
-// Инициализация ProgressTracker
+// Initialize ProgressTracker
 const progressTracker = new ProgressTracker(io);
 progressTracker.setupSocketHandlers();
 app.set('progressTracker', progressTracker);
 
-// Делаем app доступным глобально для очереди
+// Make app globally available for the queue
 global.app = app;
 
-// Статические файлы
+// Static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// API маршруты
+// API routes
 app.use('/api', translateRouter);
 
-// Обработка ошибок
+// Error handling
 app.use(errorHandler);
 
-// Запуск сервера
+// Server startup
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-  console.log(\`Server is running on port \${PORT}\`);
+  console.log(`Server is running on port ${PORT}`);
 });
 
-// Graceful shutdown
-const shutdown = async () => {
-  console.log('Shutting down server...');
-  
-  // Закрываем соединение с Redis
-  const redis = app.get('progressTracker').redis;
-  if (redis) {
-    await redis.quit();
+// Graceful shutdown handler
+const shutdown = async (signal) => {
+  winston.info(`Received ${signal}. Starting graceful shutdown...`);
+  let exitCode = 0;
+
+  try {
+    // Stop accepting new connections
+    server.close(() => {
+      winston.info('HTTP server closed');
+    });
+
+    // Close Redis connection
+    const redis = app.get('progressTracker').redis;
+    if (redis) {
+      await redis.quit();
+      winston.info('Redis connection closed');
+    }
+
+    // Wait for existing connections to finish
+    const forceExit = setTimeout(() => {
+      winston.error('Could not close connections in time, forcefully shutting down');
+      process.exitCode = 1;
+      throw new Error('Force shutdown');
+    }, 10000);
+
+    // Clear timeout if everything closed normally
+    clearTimeout(forceExit);
+    winston.info('Graceful shutdown completed');
+    process.exitCode = exitCode;
+  } catch (error) {
+    winston.error('Error during shutdown:', error);
+    process.exitCode = 1;
   }
-
-  // Закрываем HTTP сервер
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
-  });
-
-  // Форсированное закрытие через 10 секунд
-  setTimeout(() => {
-    console.error('Could not close connections in time, forcefully shutting down');
-    process.exit(1);
-  }, 10000);
 };
 
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+// Signal handlers
+const shutdownSignals = ['SIGTERM', 'SIGINT', 'SIGUSR2'];
+shutdownSignals.forEach((signal) => {
+  process.on(signal, () => shutdown(signal));
+});
+
+// Uncaught error handlers
+process.on('uncaughtException', (error) => {
+  winston.error('Uncaught Exception:', error);
+  process.exitCode = 1;
+  shutdown('uncaughtException');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  winston.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exitCode = 1;
+  shutdown('unhandledRejection');
+});
 
 module.exports = app;

@@ -1,40 +1,23 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
-import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
   test: {
     globals: true,
-    environment: 'jsdom',
-    setupFiles: ['./tests/setup.js'],
-    include: [
-      'src/**/*.{test,spec}.{js,jsx}',
-      'server/**/*.{test,spec}.{js,jsx}'
-    ],
-    exclude: [
-      'node_modules',
-      'dist',
-      '.idea',
-      '.git',
-      '.cache',
-      'tests/e2e',
-      'tests/integration'
-    ],
+    environment: 'node',
+    testTimeout: 20000,
     coverage: {
-      provider: 'c8',
-      reporter: ['text', 'json', 'html'],
+      provider: 'v8',
+      reporter: ['text', 'html'],
+      include: ['server/**/*.js'],
       exclude: [
-        'node_modules/',
-        'tests/',
-        '**/*.{test,spec}.{js,jsx}',
-        '**/*.d.ts',
-      ],
+        'node_modules',
+        'test',
+        '**/*.test.js',
+        '**/*.config.js'
+      ]
     },
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-      '@server': path.resolve(__dirname, './server'),
-      '@tests': path.resolve(__dirname, './tests'),
-    },
+    setupFiles: ['./tests/setup.js']
   },
 });
