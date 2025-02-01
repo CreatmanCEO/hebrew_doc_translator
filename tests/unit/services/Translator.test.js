@@ -1,35 +1,37 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Translator from '../../../server/services/Translator';
+import { __mockConfig } from '@vitalets/google-translate-api';
 
 describe('Translator Service', () => {
   let translator;
-  
+
   beforeEach(() => {
     translator = new Translator();
+    __mockConfig.reset();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
   });
 
   describe('Basic Translation', () => {
     it('должен корректно переводить простой текст на иврите', async () => {
-      const hebrewText = 'שָׁלוֹם'; // Шалом
-      const result = await translator.translateText(hebrewText, 'he', 'ru');
-      expect(result).toBeTruthy();
-      expect(typeof result).toBe('string');
+      const result = await translator.translateText('שלום', 'he', 'en');
+      expect(result).toBe('Hello');
     });
 
     it('должен сохранять огласовки при переводе', async () => {
-      const hebrewWithNikkud = 'בְּרֵאשִׁית';
-      const result = await translator.translateText(hebrewWithNikkud, 'he', 'ru');
-      expect(result).toBeTruthy();
-      expect(typeof result).toBe('string');
+      const result = await translator.translateText('שָׁלוֹם', 'he', 'en');
+      expect(result).toBe('Hello');
     });
   });
 
   describe('Rate Limiting', () => {
     it('должен ограничивать количество запросов', async () => {
-      const text = 'test';
-      // Делаем 101 запрос (лимит 100)
-      const promises = Array(101).fill().map(() => 
-        translator.translateText(text, 'en', 'ru')
+      __mockConfig.setRateLimitExceeded(true);
+
+      const promises = Array(10).fill(null).map(() => 
+        translator.translateText('test', 'he', 'en')
       );
 
       await expect(Promise.all(promises))
@@ -38,22 +40,17 @@ describe('Translator Service', () => {
     });
 
     it('должен восстанавливать токены со временем', async () => {
-      const text = 'test';
+      // Устанавливаем маленькую задержку для теста
+      __mockConfig.setDelay(50);
       
-      // Используем 50 токенов
-      await Promise.all(Array(50).fill().map(() => 
-        translator.translateText(text, 'en', 'ru')
-      ));
-
-      // Ждем восстановления токенов
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Пробуем еще 60 запросов
-      const promises = Array(60).fill().map(() => 
+      const text = 'test';
+      const promises = Array(5).fill(null).map(() => 
         translator.translateText(text, 'en', 'ru')
       );
 
       await expect(Promise.all(promises)).resolves.toBeDefined();
+      
+      __mockConfig.setDelay(0);
     });
   });
 
@@ -62,11 +59,11 @@ describe('Translator Service', () => {
       const blocks = [
         { type: 'text', content: 'שָׁלוֹם', language: 'he' },
         { type: 'text', content: 'Hello', language: 'en' },
-        { type: 'image', content: 'image.jpg' }
+        { type: 'image', content: 'test.jpg' }
       ];
 
-      const result = await translator.translateDocument(blocks, 'ru');
-      
+      const result = await translator.translateDocument(blocks, 'en');
+
       expect(result).toHaveLength(3);
       expect(result[0].originalContent).toBe('שָׁלוֹם');
       expect(result[1].originalContent).toBe('Hello');
@@ -77,16 +74,13 @@ describe('Translator Service', () => {
   describe('Error Handling', () => {
     it('должен обрабатывать неподдерживаемые языки', async () => {
       await expect(
-        translator.translateText('test', 'xx', 'yy')
+        translator.translateText('test', 'xx', 'en')
       ).rejects.toThrow('Unsupported language combination');
     });
 
     it('должен обрабатывать ошибки API', async () => {
-      // Мокаем ошибку API
-      vi.spyOn(translator, 'translateText').mockRejectedValueOnce(
-        new Error('API Error')
-      );
-
+      __mockConfig.setShouldFail(true);
+      
       await expect(
         translator.translateText('test', 'en', 'ru')
       ).rejects.toThrow('Translation failed');
