@@ -4,7 +4,7 @@
 Web application for translating documents from Hebrew to Russian and English while preserving original formatting and handling mixed content.
 
 ## Project Status
-**Current Stage:** CI/CD Setup & Testing  
+**Current Stage:** Testing & CI/CD Setup  
 **Last Update:** 01.02.2025  
 **Status:** Active Development
 
@@ -12,178 +12,164 @@ Web application for translating documents from Hebrew to Russian and English whi
 
 ### Latest Updates (01.02.2025)
 1. Testing Infrastructure:
-   - ✓ Unit tests for Translation service
-   - ✓ Mixed content handling tests
-   - ✓ Rate limiting tests
-   - ✓ Error handling tests
-
-2. Core Features:
    ```javascript
-   Translation Service:
-   - Hebrew text preprocessing
-   - Mixed content support
-   - Rate limiting (100 req/min)
-   - Error handling
-
-   Content Processing:
-   - File type validation
-   - Format preservation
-   - Batch processing
+   Core Changes:
+   - Improved test structure
+   - Mocking system refactored
+   - Jest configuration updated
    ```
 
-3. Development Setup:
+2. Mock System:
    ```javascript
-   Test Environment:
-   - Vitest 1.6.0 (test runner)
-   - Node environment
-   - 20s timeout
-   - Coverage reporting
+   Features:
+   - Translation mocks
+   - Rate limiting simulation
+   - Error handling testing
    ```
 
-## Code Structure
+3. Test Improvements:
+   ```javascript
+   Coverage:
+   - Unit tests
+   - Integration tests
+   - Error scenarios
+   ```
 
-### Core Services
+## Development Structure
+
+### Core Components
 ```javascript
 server/
 ├── services/
-│   ├── Translator.js         // Translation service
-│   ├── DocumentGenerator.js  // Output generation
-│   └── LayoutExtractor.js    // Format handling
-├── middleware/
-│   ├── fileValidation.js    // MIME validation
-│   └── errorHandler.js      // Error processing
-└── api/
-    └── translate.js         // API endpoints
+│   ├── Translator.js          // Translation service
+│   ├── DocumentGenerator.js   // Output generation
+│   └── __mocks__/            // Service mocks
+├── api/
+└── middleware/
 ```
 
 ### Test Structure
 ```javascript
 tests/
-├── services/               // Service tests
-│   └── Translator.test.js
-├── unit/                  // Unit tests
+├── unit/
 │   └── services/
-├── integration/           // Integration tests
-└── setup.js              // Test configuration
+│       └── Translator.test.js
+├── integration/
+└── setup/
 ```
 
 ## Implementation Details
 
-### Translation Pipeline
+### Translation Service
 ```javascript
-1. Input Processing:
-   - File validation (MIME types)
-   - Text extraction
-   - Hebrew detection
+Features:
+- Hebrew text handling
+- Rate limiting (100 req/min)
+- Batch processing
+- Error management
 
-2. Translation:
-   - Rate limit check
-   - Hebrew transliteration
-   - Mixed content handling
-   
-3. Output Generation:
-   - Format preservation
-   - Batch processing
-   - Error handling
-```
-
-### Rate Limiting
-```javascript
-Configuration:
-- 100 tokens per minute
-- Auto-refill mechanism
-- Batch delay: 1s (prod) / 100ms (test)
-
-Error Handling:
-- Translation errors
-- API errors
-- Rate limit errors
+Testing:
+- Mocked API calls
+- Simulated delays
+- Error scenarios
 ```
 
 ### Testing Coverage
 ```javascript
-Current Status:
-✓ 14 tests passing
-× 4 tests failing
-
-Areas Covered:
+Unit Tests:
 - Basic translation
-- Mixed content
 - Rate limiting
-- Error scenarios
+- Batch processing
+- Error handling
+
+Integration Tests:
+- Full pipeline
+- Real-world scenarios
 ```
+
+### Mock System
+```javascript
+Components:
+- Translation mocks
+- Hebrew transliteration
+- Rate limiting simulation
+
+Configuration:
+- Custom responses
+- Delay simulation
+- Error injection
+```
+
+## Current Tasks
+
+### Testing
+1. Automated Tests:
+   - Unit tests
+   - Integration tests
+   - E2E setup
+
+2. CI/CD Pipeline:
+   - GitHub Actions
+   - Test automation
+   - Deploy process
+
+3. Quality Control:
+   - Coverage reports
+   - Performance metrics
+   - Error tracking
 
 ## Development Guidelines
 
 ### Running Tests
 ```bash
-# Basic test run
+# Full test suite
+npm run test:all
+
+# Unit tests only
 npm test
 
-# Watch mode
-npm run test:watch
-
-# Coverage report
+# With coverage
 npm run test:coverage
 ```
 
-### Test Configuration
+### Mock Usage
 ```javascript
-vitest.config.js:
-{
-  environment: 'node',
-  testTimeout: 20000,
-  coverage: {
-    reporter: ['text', 'html'],
-    include: ['server/**/*.js']
-  }
-}
+// Configure mocks
+mockState.shouldFail = true;
+mockState.rateLimitExceeded = false;
+
+// Reset state
+resetState();
+
+// Custom responses
+addCustomResponse('key', 'value');
 ```
 
 ## Known Issues
 
-### Translation Service
-1. Mixed content handling needs improvement
-   - Hebrew/non-Hebrew separation
-   - Transliteration accuracy
+### Testing
+1. Jest vs Vitest compatibility
+2. Mock system complexity
+3. Integration test setup
 
-2. Rate Limiting
-   - Token recovery timing
-   - Test timeouts
-
-3. Error Handling
-   - API error messages
-   - Error propagation
+### Translation
+1. Rate limit handling
+2. Error propagation
+3. Mock fidelity
 
 ## Upcoming Tasks
-1. Fix remaining test failures:
-   - Mixed content preservation
-   - Rate limit recovery
-   - Error message consistency
-
-2. CI/CD Pipeline:
-   - GitHub Actions setup
-   - Automated testing
-   - Deployment configuration
-
-3. Monitoring:
-   - Error tracking
-   - Performance metrics
-   - API usage stats
+1. Complete testing setup
+2. Implement CI/CD
+3. Add monitoring
 
 ## Change History
 
 ### 01.02.2025
-- Added comprehensive test suite
-- Improved translation service
-- Updated test configuration
+- Test system refactored
+- Mock system improved
+- Coverage increased
 
 ### 31.01.2025
-- CI/CD implementation
-- Test environment setup
-- ESLint configuration
-
-### 27.01.2025
 - Initial test setup
-- Code structure improvement
-- Project initialization
+- Mock system created
+- CI/CD started
