@@ -14,11 +14,11 @@ module.exports = {
   },
   rules: {
     'node/no-missing-require': ['error', {
-      allowModules: ['bull', '@azure/ai-translator', 'pdf.js-extract', 'mammoth'],
+      allowModules: ['bull', 'pdf.js-extract', 'mammoth', 'hebrew-transliteration', 'openai'],
       tryExtensions: ['.js', '.json', '.node']
     }],
     'node/no-extraneous-require': ['error', {
-      allowModules: ['axios', 'file-type']
+      allowModules: ['axios', 'file-type', 'hebrew-transliteration', 'openai']
     }],
     'no-unused-vars': ['error', {
       argsIgnorePattern: '^_',

@@ -1,0 +1,32 @@
+{
+  "name": "hebrew-doc-translator-server",
+  "version": "1.0.0",
+  "description": "Server for Hebrew document translation",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "@google-cloud/translate": "^7.2.1",
+    "bull": "^4.10.4",
+    "cors": "^2.8.5",
+    "docx": "^8.5.0",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "franc": "^6.1.0",
+    "helmet": "^7.1.0",
+    "mammoth": "^1.6.0",
+    "multer": "^1.4.5-lts.1",
+    "pdf-parse": "^1.1.1",
+    "pdf.js-extract": "^0.2.1",
+    "pdfkit": "^0.14.0",
+    "socket.io": "^4.6.1",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  }
+} 

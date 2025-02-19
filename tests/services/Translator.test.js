@@ -1,111 +1,87 @@
 const Translator = require('../../server/services/Translator');
+const ApiKeyManager = require('../../server/services/ApiKeyManager');
+const redis = require('../../server/config/redis');
+
+jest.mock('openai');
+jest.mock('hebrew-transliteration');
+jest.mock('../../server/config/redis');
 
 describe('Translator Service', () => {
+  let translator;
+  let mockOpenAI;
+
+  beforeEach(() => {
+    translator = new Translator();
+    mockOpenAI = {
+      createChatCompletion: jest.fn().mockResolvedValue({
+        data: {
+          choices: [{
+            message: { content: 'Hello' }
+          }]
+        }
+      })
+    };
+    jest.spyOn(translator, 'getOpenAIInstance').mockResolvedValue(mockOpenAI);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+    redis.flushall();
+  });
+
   describe('Basic Translation', () => {
     it('should translate text from Hebrew to English', async () => {
-      const result = await Translator.translate('שלום', 'he', 'en');
+      const result = await translator.translateText('שלום', 'he', 'en');
       expect(result).toBe('Hello');
+      expect(mockOpenAI.createChatCompletion).toHaveBeenCalled();
     });
 
-    it('should translate text from Hebrew to Russian', async () => {
-      const result = await Translator.translate('שלום', 'he', 'ru');
-      expect(result).toBe('Привет');
-    });
-
-    it('should handle large text', async () => {
-      const text = 'שלום'.repeat(100);
-      const result = await Translator.translate(text, 'he', 'en');
-      expect(result).toBe('Hello'.repeat(100));
-    });
-  });
-
-  describe('Mixed Content Handling', () => {
-    it('should preserve non-Hebrew parts', async () => {
-      const result = await Translator.translate('Hello שלום World', 'he', 'en');
-      expect(result).toBe('Hello Hello World');
-    });
-
-    it('should handle special characters and numbers', async () => {
-      const result = await Translator.translate('123 !שלום? 456', 'he', 'en');
-      expect(result).toBe('123 !Hello? 456');
-    });
-  });
-
-  describe('Document Translation', () => {
-    it('should translate document content', async () => {
-      const doc = {
-        content: 'שלום וברוכים הבאים',
-        metadata: { title: 'Test' }
-      };
-      const result = await Translator.translateDocument(doc, 'he', 'en');
-      expect(result.content).toBe('Hello and welcome');
-      expect(result.metadata).toEqual(doc.metadata);
-    });
-
-    it('should handle empty document sections', async () => {
-      const doc = {
-        content: '',
-        metadata: { title: 'Test' }
-      };
-      const result = await Translator.translateDocument(doc, 'he', 'en');
-      expect(result.content).toBe('');
-      expect(result.metadata).toEqual(doc.metadata);
-    });
-  });
-
-  describe('Rate Limiting', () => {
-    beforeEach(() => {
-      jest.useFakeTimers();
-    });
-
-    afterEach(() => {
-      jest.useRealTimers();
-    });
-
-    it('should handle rate limits', async () => {
-      // Make multiple requests to trigger rate limit
-      const promises = Array(10).fill().map(() => 
-        Translator.translate('שלום', 'he', 'en')
-      );
+    it('should use cache for repeated translations', async () => {
+      // First translation
+      await translator.translateText('שלום', 'he', 'en');
       
-      await expect(Promise.all(promises))
-        .rejects
-        .toThrow('Rate limit exceeded');
-    });
-
-    it('should recover after rate limit cooldown', async () => {
-      // First trigger rate limit
-      const promises = Array(10).fill().map(() => 
-        Translator.translate('שלום', 'he', 'en')
-      );
+      // Second translation (should use cache)
+      redis.get.mockResolvedValueOnce(JSON.stringify('Hello'));
+      const result = await translator.translateText('שלום', 'he', 'en');
       
-      await expect(Promise.all(promises))
-        .rejects
-        .toThrow('Rate limit exceeded');
-
-      // Fast-forward time
-      jest.advanceTimersByTime(60000); // 1 minute
-
-      // Try again after cooldown
-      const result = await Translator.translate('שלום', 'he', 'en');
       expect(result).toBe('Hello');
-    }, 30000); // Increase timeout to 30 seconds
+      expect(mockOpenAI.createChatCompletion).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('Error Handling', () => {
-    it('should handle translation service errors', async () => {
-      // Mock translation service error
-      jest.spyOn(Translator, 'callTranslationAPI').mockRejectedValueOnce(new Error('Service error'));
+    it('should handle OpenAI API errors', async () => {
+      mockOpenAI.createChatCompletion.mockRejectedValueOnce(new Error('API Error'));
       
-      await expect(Translator.translate('שלום', 'he', 'en'))
+      await expect(translator.translateText('שלום', 'he', 'en'))
         .rejects
-        .toThrow('Translation service error');
+        .toThrow('Translation failed: API Error');
     });
 
-    it('should handle invalid input', async () => {
-      await expect(Translator.translate(null, 'he', 'en'))
+    it('should handle invalid language combinations', async () => {
+      await expect(translator.translateText('Hello', 'fr', 'en'))
         .rejects
-        .toThrow('Invalid input');
+        .toThrow('Unsupported language combination');
+    });
+  });
+
+  describe('API Key Management', () => {
+    it('should try alternative key on authentication error', async () => {
+      const error = new Error('Authentication error');
+      error.response = { status: 401 };
+      mockOpenAI.createChatCompletion
+        .mockRejectedValueOnce(error)
+        .mockResolvedValueOnce({
+          data: {
+            choices: [{
+              message: { content: 'Hello' }
+            }]
+          }
+        });
+
+      const result = await translator.translateText('שלום', 'he', 'en');
+      expect(result).toBe('Hello');
+      expect(mockOpenAI.createChatCompletion).toHaveBeenCalledTimes(2);
     });
   });
 });

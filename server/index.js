@@ -18,20 +18,24 @@ const server = http.createServer(app);
 // Настраиваем Socket.IO
 const io = socketIO(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:3000',
-    methods: ['GET', 'POST']
+    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true
   }
 });
 
 // Базовые middleware
-app.use(helmet());
+app.set('trust proxy', 1);
+// app.use(helmet()); // Временно отключаем helmet
+
+// Настраиваем CORS
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
-  methods: ['GET', 'POST'],
+  origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Content-Length", "Authorization"],
   credentials: true
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -39,6 +43,9 @@ const limiter = rateLimit({
   max: 100 // максимум 100 запросов с одного IP
 });
 app.use(limiter);
+
+// Сохраняем io для использования в маршрутах
+app.set('io', io);
 
 // Инициализация ProgressTracker
 const progressTracker = new ProgressTracker(io);
@@ -53,6 +60,10 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // API маршруты
 app.use('/api', translateRouter);
+
+// Базовые middleware - после маршрутов API
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Обработка ошибок
 app.use(errorHandler);

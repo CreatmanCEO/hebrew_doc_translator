@@ -1,0 +1,30 @@
+{
+  "openai": {
+    "keys": [
+      "your-openai-key-1",
+      "your-openai-key-2"
+    ],
+    "organizations": [
+      "your-org-id"
+    ]
+  },
+  "google": {
+    "gemini": "your-gemini-api-key",
+    "maps": [
+      "your-google-maps-key"
+    ]
+  },
+  "huggingface": {
+    "token": "your-huggingface-token"
+  },
+  "redis": {
+    "host": "your-redis-host",
+    "port": "your-redis-port",
+    "password": "your-redis-password"
+  },
+  "other_apis": {
+    "judge0": "your-judge0-key",
+    "hume": "your-hume-key",
+    "rapid_api": "your-rapid-api-key"
+  }
+} 

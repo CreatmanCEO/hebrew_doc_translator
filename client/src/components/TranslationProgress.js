@@ -1,135 +1,74 @@
-import React from 'react';
-import clsx from 'clsx';
-import {
-  DocumentTextIcon,
-  LanguageIcon,
-  DocumentDuplicateIcon,
-  CheckCircleIcon,
-  ExclamationCircleIcon
-} from '@heroicons/react/24/outline';
+import React, { useEffect } from 'react';
+import { Box, LinearProgress, Typography, Button } from '@mui/material';
+import { useSnackbar } from 'notistack';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import RefreshIcon from '@mui/icons-material/Refresh';
 
-const steps = [
-  { id: 'extract', icon: DocumentTextIcon, title: 'Извлечение текста' },
-  { id: 'translate', icon: LanguageIcon, title: 'Перевод' },
-  { id: 'generate', icon: DocumentDuplicateIcon, title: 'Создание документа' }
-];
+function TranslationProgress({ status, progress, error, onReset }) {
+  const { enqueueSnackbar } = useSnackbar();
 
-const TranslationProgress = ({ 
-  currentStep = null,
-  error = null,
-  progress = 0,
-  details = {}
-}) => {
-  const getStepStatus = (stepId) => {
-    if (error) return 'error';
-    if (!currentStep) return 'pending';
-    if (currentStep === stepId) return 'current';
-    
-    const currentIndex = steps.findIndex(s => s.id === currentStep);
-    const stepIndex = steps.findIndex(s => s.id === stepId);
-    
-    return stepIndex < currentIndex ? 'completed' : 'pending';
-  };
+  useEffect(() => {
+    if (error) {
+      enqueueSnackbar(error, { 
+        variant: 'error',
+        autoHideDuration: 5000,
+        action: onReset ? (
+          <Button color="inherit" size="small" onClick={onReset}>
+            <RefreshIcon />
+          </Button>
+        ) : undefined
+      });
+    }
+  }, [error, enqueueSnackbar, onReset]);
 
-  const renderStepIcon = (step, status) => {
-    const Icon = step.icon;
-    
+  if (!status || status === 'idle') return null;
+
+  if (status === 'error') {
     return (
-      <div
-        className={clsx(
-          'relative z-10 flex h-12 w-12 items-center justify-center rounded-full',
-          {
-            'bg-white border-2 border-gray-300': status === 'pending',
-            'bg-blue-600': status === 'current',
-            'bg-green-600': status === 'completed',
-            'bg-red-600': status === 'error'
-          }
+      <Box sx={{ width: '100%', mt: 4, textAlign: 'center' }}>
+        <ErrorOutlineIcon color="error" sx={{ fontSize: 40, mb: 1 }} />
+        <Typography color="error" gutterBottom>
+          {error || 'Произошла ошибка при обработке файла'}
+        </Typography>
+        {onReset && (
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={onReset}
+            startIcon={<RefreshIcon />}
+          >
+            Попробовать снова
+          </Button>
         )}
-      >
-        {status === 'completed' ? (
-          <CheckCircleIcon className="h-8 w-8 text-white" />
-        ) : status === 'error' ? (
-          <ExclamationCircleIcon className="h-8 w-8 text-white" />
-        ) : (
-          <Icon
-            className={clsx('h-6 w-6', {
-              'text-gray-500': status === 'pending',
-              'text-white': status === 'current'
-            })}
-          />
-        )}
-      </div>
+      </Box>
     );
-  };
-
-  const renderStepDetails = (step) => {
-    const stepDetails = details[step.id];
-    if (!stepDetails) return null;
-
-    return (
-      <div className="mt-2 text-sm text-gray-500">
-        {stepDetails}
-      </div>
-    );
-  };
+  }
 
   return (
-    <div className="w-full max-w-3xl mx-auto">
-      {/* Progress bar */}
-      <div className="relative mb-8">
-        <div 
-          className="absolute left-0 top-1/2 w-full h-0.5 -translate-y-1/2 bg-gray-200"
-          aria-hidden="true"
-        >
-          <div 
-            className={clsx(
-              'h-full transition-all duration-500',
-              error ? 'bg-red-500' : 'bg-blue-500'
-            )}
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-
-        {/* Steps */}
-        <div className="relative z-10 flex justify-between">
-          {steps.map((step, index) => {
-            const status = getStepStatus(step.id);
-            
-            return (
-              <div key={step.id} className="flex flex-col items-center">
-                {renderStepIcon(step, status)}
-
-                <div className="mt-2">
-                  <div className={clsx(
-                    'text-sm font-medium',
-                    {
-                      'text-gray-500': status === 'pending',
-                      'text-blue-600': status === 'current',
-                      'text-green-600': status === 'completed',
-                      'text-red-600': status === 'error'
-                    }
-                  )}>
-                    {step.title}
-                  </div>
-                  {renderStepDetails(step)}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Error message */}
-      {error && (
-        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
-          <div className="flex">
-            <ExclamationCircleIcon className="h-5 w-5 text-red-600 mr-2" />
-            <div className="text-sm text-red-600">{error}</div>
-          </div>
-        </div>
+    <Box sx={{ width: '100%', mt: 4 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+        <Typography variant="body1" sx={{ flexGrow: 1 }}>
+          {status === 'uploading' ? 'Загрузка файла...' :
+           status === 'processing' ? 'Перевод документа...' :
+           status === 'completed' ? 'Перевод завершен' :
+           'Подготовка к переводу...'}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          {progress}%
+        </Typography>
+      </Box>
+      <LinearProgress 
+        variant="determinate" 
+        value={progress} 
+        color={status === 'completed' ? 'success' : 'primary'}
+      />
+      {status === 'completed' && (
+        <Typography variant="body2" color="success.main" sx={{ mt: 1 }}>
+          Документ успешно переведен
+        </Typography>
       )}
-    </div>
+    </Box>
   );
-};
+}
 
-export default TranslationProgress;
+export default TranslationProgress; 

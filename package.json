@@ -21,7 +21,9 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
-    "@azure/ai-translator": "^1.1.0",
+    "@google-cloud/translate": "^7.0.0",
+    "hebrew-transliteration": "^2.0.0",
+    "openai": "^4.0.0",
     "bull": "^4.12.0",
     "cors": "^2.8.5",
     "docx": "^8.5.0",
@@ -36,7 +38,7 @@
     "mime-types": "^2.1.35",
     "multer": "^1.4.5-lts.1",
     "pdf.js-extract": "^0.2.1",
-    "pdf2json": "^2.0.2",
+    "pdf-parse": "^1.1.1",
     "pdfkit": "^0.14.0",
     "socket.io": "^4.7.4",
     "tesseract.js": "^5.0.3",
@@ -48,7 +50,7 @@
     "@testing-library/jest-dom": "^6.2.0",
     "@testing-library/react": "^14.1.2",
     "@testing-library/user-event": "^14.5.2",
-    "@vitest/coverage-c8": "^1.2.1",
+    "@vitest/coverage-v8": "^1.2.1",
     "@vitest/ui": "^1.2.1",
     "c8": "^9.0.0",
     "concurrently": "^8.2.2",
