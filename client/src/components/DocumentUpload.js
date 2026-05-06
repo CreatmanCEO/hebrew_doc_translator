@@ -7,17 +7,7 @@ const DocumentUpload = ({ onFileSelect, acceptedTypes = ['.pdf', '.doc', '.docx'
   const [error, setError] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
 
-  const handleDrag = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setIsDragging(true);
-    } else if (e.type === 'dragleave') {
-      setIsDragging(false);
-    }
-  }, []);
-
-  const validateFile = (file) => {
+  const validateFile = useCallback((file) => {
     if (!file) return 'Выберите файл';
     
     const fileType = file.name.toLowerCase().split('.').pop();
@@ -31,7 +21,17 @@ const DocumentUpload = ({ onFileSelect, acceptedTypes = ['.pdf', '.doc', '.docx'
     }
 
     return null;
-  };
+  }, [acceptedTypes]);
+
+  const handleDrag = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setIsDragging(true);
+    } else if (e.type === 'dragleave') {
+      setIsDragging(false);
+    }
+  }, []);
 
   const handleDrop = useCallback((e) => {
     e.preventDefault();
@@ -39,37 +39,37 @@ const DocumentUpload = ({ onFileSelect, acceptedTypes = ['.pdf', '.doc', '.docx'
     setIsDragging(false);
 
     const file = e.dataTransfer.files[0];
-    const error = validateFile(file);
+    const validationError = validateFile(file);
     
-    if (error) {
-      setError(error);
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
     setSelectedFile(file);
     setError(null);
     onFileSelect?.(file);
-  }, [onFileSelect, acceptedTypes]);
+  }, [onFileSelect, validateFile]);
 
-  const handleFileSelect = (e) => {
+  const handleFileSelect = useCallback((e) => {
     const file = e.target.files[0];
-    const error = validateFile(file);
+    const validationError = validateFile(file);
     
-    if (error) {
-      setError(error);
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
     setSelectedFile(file);
     setError(null);
     onFileSelect?.(file);
-  };
+  }, [onFileSelect, validateFile]);
 
-  const handleRemoveFile = () => {
+  const handleRemoveFile = useCallback(() => {
     setSelectedFile(null);
     setError(null);
     onFileSelect?.(null);
-  };
+  }, [onFileSelect]);
 
   return (
     <div className="max-w-xl mx-auto">

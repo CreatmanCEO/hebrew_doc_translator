@@ -1,4 +1,4 @@
-const { Document, Paragraph, TextRun, HeadingLevel } = require('docx');
+const { Document, Paragraph, TextRun } = require('docx');
 const PDFDocument = require('pdfkit');
 const fs = require('fs').promises;
 

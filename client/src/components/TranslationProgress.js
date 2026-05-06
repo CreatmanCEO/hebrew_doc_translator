@@ -75,7 +75,6 @@ const TranslationProgress = ({
 
   return (
     <div className="w-full max-w-3xl mx-auto">
-      {/* Progress bar */}
       <div className="relative mb-8">
         <div 
           className="absolute left-0 top-1/2 w-full h-0.5 -translate-y-1/2 bg-gray-200"
@@ -90,9 +89,8 @@ const TranslationProgress = ({
           />
         </div>
 
-        {/* Steps */}
         <div className="relative z-10 flex justify-between">
-          {steps.map((step, index) => {
+          {steps.map((step) => {
             const status = getStepStatus(step.id);
             
             return (
@@ -119,7 +117,6 @@ const TranslationProgress = ({
         </div>
       </div>
 
-      {/* Error message */}
       {error && (
         <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
           <div className="flex">

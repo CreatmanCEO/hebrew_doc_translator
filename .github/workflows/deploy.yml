@@ -1,0 +1,105 @@
+name: Deploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+
+# Права для GITHUB_TOKEN
+permissions:
+  contents: read
+  deployments: write
+
+env:
+  NODE_VERSION: '18.x'
+  DEPLOY_PATH: '/var/www/hebrew-translator'
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success' && github.ref == 'refs/heads/develop'
+    environment: staging
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+          
+      - name: Deploy to Staging
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USERNAME }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            mkdir -p ${{ env.DEPLOY_PATH }}
+            rsync -av --delete ./dist/ ${{ env.DEPLOY_PATH }}/
+            pm2 reload hebrew-translator-staging
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success' && github.ref == 'refs/heads/main'
+    environment: production
+    needs: deploy-staging
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+          
+      - name: Deploy to Production
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: ${{ secrets.PRODUCTION_USERNAME }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          script: |
+            mkdir -p ${{ env.DEPLOY_PATH }}
+            rsync -av --delete ./dist/ ${{ env.DEPLOY_PATH }}/
+            pm2 reload hebrew-translator-production
+            
+      - name: Create Release
+        if: success()
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.run_number }}
+          release_name: Release v${{ github.run_number }}
+          body: |
+            Production deployment successful
+            
+            SHA: ${{ github.sha }}
+            Environment: Production
+            Deployed by: ${{ github.actor }}
+          draft: false
+          prerelease: false

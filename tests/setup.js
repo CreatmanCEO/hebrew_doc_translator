@@ -1,52 +1,29 @@
-import '@testing-library/jest-dom';
 import { vi } from 'vitest';
-import { TextDecoder, TextEncoder } from 'util';
+import { mockConfig } from './__mocks__/translationService';
 
-// Мокаем глобальные объекты браузера
-global.TextDecoder = TextDecoder;
-global.TextEncoder = TextEncoder;
-
-// Мокаем Redis для тестов
-vi.mock('ioredis', () => {
-  const Redis = vi.fn();
-  Redis.prototype.get = vi.fn();
-  Redis.prototype.set = vi.fn();
-  Redis.prototype.del = vi.fn();
-  Redis.prototype.hmset = vi.fn();
-  Redis.prototype.hgetall = vi.fn();
-  return Redis;
-});
-
-// Мокаем Bull для тестов
-vi.mock('bull', () => {
+// Определяем моки до импорта тестируемых модулей
+vi.mock('@vitalets/google-translate-api', () => {
   return {
-    default: vi.fn().mockImplementation(() => ({
-      add: vi.fn(),
-      process: vi.fn(),
-      on: vi.fn(),
-    })),
+    translate: vi.fn().mockImplementation(async (text, options) => {
+      // Импортируем реализацию мока динамически
+      const { translate } = await import('./__mocks__/translationService');
+      return translate(text, options);
+    })
   };
 });
 
-// Мокаем файловую систему
-vi.mock('fs/promises', () => ({
-  readFile: vi.fn(),
-  writeFile: vi.fn(),
-  unlink: vi.fn(),
-  access: vi.fn(),
-  mkdir: vi.fn(),
-}));
+vi.mock('hebrew-transliteration', () => {
+  return {
+    transliterate: vi.fn().mockImplementation((text) => {
+      // Импортируем реализацию мока динамически
+      const { transliterate } = require('./__mocks__/translationService');
+      return transliterate(text);
+    })
+  };
+});
 
-// Мокаем window.fs для браузера
-global.window = {
-  ...global.window,
-  fs: {
-    readFile: vi.fn(),
-    writeFile: vi.fn(),
-  },
-};
-
-// Очистка моков после каждого теста
+// Очистка состояния моков после каждого теста
 afterEach(() => {
+  mockConfig.reset();
   vi.clearAllMocks();
 });
