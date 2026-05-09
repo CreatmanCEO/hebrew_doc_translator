@@ -23,8 +23,14 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Validate package.json
-        run: node -e "const p=require('./package.json'); if(!p.name||!p.version){process.exit(1)}; console.log('package.json ok:',p.name,p.version)"
+      - name: Validate root package.json
+        run: node -e "const p=require('./package.json'); if(!p.name||!p.version||!p.workspaces){process.exit(1)}; console.log('package.json ok:',p.name,p.version,'workspaces:',p.workspaces)"
 
-      - name: Syntax-check server entry
-        run: node --check server/index.js || echo "server/index.js syntax check skipped"
+      - name: Validate api package.json
+        run: node -e "const p=require('./packages/api/package.json'); if(!p.name){process.exit(1)}; console.log('api ok:',p.name)"
+
+      - name: Validate client package.json
+        run: node -e "const p=require('./packages/client/package.json'); if(!p.name){process.exit(1)}; console.log('client ok:',p.name)"
+
+      - name: Validate shared package.json
+        run: node -e "const p=require('./packages/shared/package.json'); if(!p.name){process.exit(1)}; console.log('shared ok:',p.name)"

@@ -49,3 +49,6 @@ combined.log
 debug.log 
 # Service account keys / API credentials (never commit)
 secrets/
+
+# Tesseract traineddata cache (downloaded по требованию tesseract.js)
+*.traineddata
