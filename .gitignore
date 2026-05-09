@@ -47,3 +47,5 @@ logs/
 error.log
 combined.log
 debug.log 
+# Service account keys / API credentials (never commit)
+secrets/
