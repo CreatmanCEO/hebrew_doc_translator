@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@hdt/shared": "*",
-    "@google-cloud/translate": "^7.2.1",
+    "@google-cloud/vision": "^4.3.2",
+    "axios": "^1.7.7",
     "bull": "^4.12.0",
     "cors": "^2.8.5",
     "docx": "^8.5.0",
@@ -21,19 +22,23 @@
     "express-rate-limit": "^7.1.5",
     "franc": "^6.1.0",
     "helmet": "^7.1.0",
+    "image-size": "^1.1.1",
     "ioredis": "^5.3.2",
     "mammoth": "^1.6.0",
     "mime-types": "^2.1.35",
     "multer": "^1.4.5-lts.1",
-    "pdf.js-extract": "^0.2.1",
-    "pdf-parse": "^1.1.1",
-    "pdfkit": "^0.14.0",
+    "pdfjs-dist": "^4.7.76",
+    "pino": "^9.4.0",
+    "pino-pretty": "^11.2.2",
+    "puppeteer": "^23.4.0",
+    "sharp": "^0.33.5",
     "socket.io": "^4.7.4",
     "tesseract.js": "^5.0.3",
     "uuid": "^9.0.1",
-    "winston": "^3.11.0"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
+    "ioredis-mock": "^8.9.0",
     "nodemon": "^3.0.2"
   }
 }
