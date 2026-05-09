@@ -33,7 +33,7 @@
     "puppeteer": "^23.4.0",
     "sharp": "^0.33.5",
     "socket.io": "^4.7.4",
-    "tesseract.js": "^5.0.3",
+    "tesseract.js": "^6.0.1",
     "uuid": "^9.0.1",
     "zod": "^3.23.8"
   },
