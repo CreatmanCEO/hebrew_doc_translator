@@ -291,9 +291,25 @@ class OcrChain {
 
 ## 5. Технологические решения
 
-### 5.1 LLM-провайдер — **OpenRouter** (рекомендация), Anthropic Claude как fallback
+### 5.1 LLM-провайдер — **OpenRouter** с приоритетом дешёвых/бесплатных моделей
 
-Выбран OpenRouter: один API, маршрутизация на Claude / DeepSeek / Gemini, единый биллинг, можно экспериментировать с моделями без переписывания кода. Для перевода связного текста на иврите целевая модель — `anthropic/claude-sonnet-4` (лучшее качество на семитских языках по бенчмаркам, поддерживает batch). DeepSeek (`deepseek/deepseek-chat`) — дешёвая альтернатива для черновых переводов и тестов. **Отвергнуто**: OpenAI (политика пользователя), прямой Gemini как primary (хуже на иврите по нашим тестам у других проектов). Архитектурно `LlmProvider` остаётся абстракцией — можно подменить на прямой Anthropic SDK без изменений в Translator. Открытый вопрос — наличие у пользователя OpenRouter-ключа (см. MIGRATION_PLAN, Open questions).
+Выбран OpenRouter: один API, маршрутизация на Claude / DeepSeek / Gemini / Llama / Qwen, единый биллинг, можно экспериментировать с моделями без переписывания кода. **Политика выбора модели — cost-first с качественным fallback**:
+
+**Каскад моделей** (сверху вниз — пробуем по порядку, при ошибке/rate-limit идём ниже):
+
+1. **`google/gemini-2.0-flash-exp:free`** — primary. Бесплатный, отличный мультиязычный (включая семитские), быстрый. Ограничение: суточные/минутные лимиты, иногда недоступен.
+2. **`deepseek/deepseek-chat`** — paid fallback при недоступности free-варианта. ~$0.14/M input, $0.28/M output — экстремально дёшево. Хорошее качество на иврите.
+3. **`google/gemini-2.0-flash`** (paid) — second fallback. ~$0.10/M input, $0.40/M output. Самый предсказуемый по качеству.
+4. **`anthropic/claude-haiku-4-5`** — premium fallback только для критичных документов (опциональный режим `LLM_QUALITY_MODE=premium` в env). ~$1/M input, $5/M output.
+
+**Стратегия в `OpenRouterProvider`**: при HTTP 429 / 503 / payment-error → автоматический retry на следующую модель в каскаде. Кеш переводов в Redis (sha1 от `text+srcLang+tgtLang+model`) применяется до выбора модели — повторные блоки бесплатны независимо от тарифа.
+
+**Прогноз стоимости** @ 1000 docs/мес × 3 страницы × ~500 слов:
+- Если 80% покрывает free Gemini: **$0** для большинства, ~$0.50/мес остаток на DeepSeek
+- Если free Gemini полностью недоступен: ~$2–4/мес на DeepSeek
+- Premium режим: ~$15–25/мес (для отдельных high-quality документов)
+
+**Отвергнуто**: OpenAI (политика пользователя), Llama-3.3-70B-free (по публичным бенчмаркам уступает Gemini на семитских языках), Qwen-72B-free (нестабильный free-tier). Архитектурно `LlmProvider` остаётся абстракцией — каскад описывается конфигом, замена модели не требует кода.
 
 ### 5.2 PDF generation — **Puppeteer (HTML→PDF)**
 
@@ -352,7 +368,11 @@ const schema = z.object({
 
   // LLM
   LLM_PROVIDER: z.enum(['openrouter', 'anthropic', 'deepseek', 'gemini']).default('openrouter'),
-  LLM_MODEL: z.string().default('anthropic/claude-sonnet-4'),
+  LLM_MODEL_CASCADE: z.string().default(
+    'google/gemini-2.0-flash-exp:free,deepseek/deepseek-chat,google/gemini-2.0-flash'
+  ),  // CSV — пробуем по порядку при ошибке/rate-limit
+  LLM_QUALITY_MODE: z.enum(['standard', 'premium']).default('standard'),
+  // premium добавляет anthropic/claude-haiku-4-5 в конец каскада
   OPENROUTER_API_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   DEEPSEEK_API_KEY: z.string().optional(),
