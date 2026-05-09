@@ -1,0 +1,13 @@
+{
+  "name": "@hdt/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared contracts (types, interfaces, env schema) for HDT monorepo",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  }
+}

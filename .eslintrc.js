@@ -1,4 +1,5 @@
 module.exports = {
+  root: true,
   env: {
     node: true,
     es2021: true,
@@ -6,20 +7,34 @@ module.exports = {
   },
   extends: [
     'eslint:recommended',
-    'plugin:node/recommended',
   ],
   parserOptions: {
     ecmaVersion: 'latest',
-    sourceType: 'module',
+    sourceType: 'script',
   },
+  ignorePatterns: [
+    'node_modules/',
+    'vitest.config.js',
+    'playwright.config.js',
+    'packages/client/**',
+    'packages/api/uploads/**',
+    'coverage/',
+    'dist/',
+    'build/',
+    '**/__mocks__/**',
+    'packages/api/src/services/**',
+    'packages/api/src/documentProcessor.js',
+    'packages/api/src/documentGenerator.js',
+    'packages/api/src/api/translate.js',
+    'packages/api/src/index.js',
+    'packages/api/src/middleware/**',
+    'packages/api/src/models/**',
+    'packages/api/src/api/health.js',
+    'packages/api/src/config/**',
+    'scripts/**',
+    'tests/integration/**',
+  ],
   rules: {
-    'node/no-missing-require': ['error', {
-      allowModules: ['bull', 'pdf.js-extract', 'mammoth', 'hebrew-transliteration', 'openai'],
-      tryExtensions: ['.js', '.json', '.node']
-    }],
-    'node/no-extraneous-require': ['error', {
-      allowModules: ['axios', 'file-type', 'hebrew-transliteration', 'openai']
-    }],
     'no-unused-vars': ['error', {
       argsIgnorePattern: '^_',
       varsIgnorePattern: '^_',

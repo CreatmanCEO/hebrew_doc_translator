@@ -1,5 +1,5 @@
 {
-  "name": "hebrew-doc-translator-client",
+  "name": "@hdt/client",
   "version": "0.1.0",
   "private": true,
   "dependencies": {

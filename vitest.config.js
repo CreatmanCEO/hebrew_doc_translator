@@ -1,28 +1,28 @@
 import { defineConfig } from 'vitest/config';
-import react from '@vitejs/plugin-react';
 import path from 'path';
 
 export default defineConfig({
-  plugins: [react()],
   test: {
     globals: true,
-    environment: 'jsdom',
-    setupFiles: ['./tests/setup.js'],
+    environment: 'node',
     include: [
-      'src/**/*.{test,spec}.{js,jsx}',
-      'server/**/*.{test,spec}.{js,jsx}'
+      'packages/api/**/*.{test,spec}.{js,jsx}',
+      'packages/shared/**/*.{test,spec}.{js,jsx}',
+      'tests/unit/**/*.{test,spec}.{js,jsx}',
     ],
     exclude: [
-      'node_modules',
+      '**/node_modules/**',
       'dist',
       '.idea',
       '.git',
       '.cache',
       'tests/e2e',
-      'tests/integration'
+      'tests/integration',
+      // Pre-rewrite tests targeted code that is being deleted in P0 — see MIGRATION_PLAN §2.
+      'tests/services/**',
     ],
     coverage: {
-      provider: 'c8',
+      provider: 'v8',
       reporter: ['text', 'json', 'html'],
       exclude: [
         'node_modules/',
@@ -32,8 +32,8 @@ export default defineConfig({
       ],
     },
     alias: {
-      '@': path.resolve(__dirname, './src'),
-      '@server': path.resolve(__dirname, './server'),
+      '@hdt/shared': path.resolve(__dirname, './packages/shared/src'),
+      '@hdt/api': path.resolve(__dirname, './packages/api/src'),
       '@tests': path.resolve(__dirname, './tests'),
     },
   },
