@@ -1,9 +1,8 @@
-// @hdt/shared — common contracts for the HDT monorepo.
-// JSDoc-typed exports; see ARCHITECTURE.md §3 for the formal interfaces.
+// @hdt/shared — общие контракты HDT-монорепы.
+// JSDoc-типизированные экспорты; формальные интерфейсы — в ARCHITECTURE.md §3.
+
+const { envSchema } = require('./env/schema');
 
 module.exports = {
-  // env schema is exported lazily so consumers can opt in
-  get envSchema() {
-    return require('./env/schema');
-  },
+  envSchema,
 };
