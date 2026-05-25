@@ -63,6 +63,36 @@ npm run test:integration
 npm run test:e2e       # playwright
 ```
 
+## Supported formats
+
+| Format | Input | Output | Notes |
+|---|---|---|---|
+| PDF (text-based) | Yes | Yes | Layout and images preserved via `pdfkit` |
+| PDF (scanned) | Yes | Yes | Falls back to `tesseract.js` OCR; quality depends on scan |
+| DOCX | Yes | Yes | Paragraphs, tables, images, RTL markers retained |
+
+## Usage examples
+
+**Translate a Hebrew PDF to Russian via the web UI:**
+
+1. Open `http://localhost:3000` in your browser.
+2. Drag a `.pdf` or `.docx` file onto the upload area.
+3. Select target language (Russian or English).
+4. Click **Translate** — progress updates stream via Socket.IO.
+5. Download the translated file when the job finishes.
+
+**Architecture overview:**
+
+```
+Client (React)  -->  Express + Socket.IO  -->  Bull Queue (Redis)
+                                                   |
+                                          DocumentAnalyzer
+                                          LayoutExtractor
+                                          LanguageDetector (franc)
+                                          Translator (Google / Claude)
+                                          DocumentReassembler
+```
+
 ## Limitations
 
 - Hebrew language detection on very short blocks (< 5 chars) can misfire; those blocks may be left untranslated.
