@@ -5,6 +5,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const { errorHandler } = require('./middleware/errorHandler');
@@ -73,6 +74,13 @@ global.app = app;
 // API маршруты
 app.use('/api', translateRouter);
 app.use('/api', healthRouter);
+
+// Отдаём собранный React-клиент (в проде); SPA-fallback на index.html
+const clientBuild = path.join(__dirname, '..', 'client', 'build');
+if (fs.existsSync(clientBuild)) {
+  app.use(express.static(clientBuild));
+  app.get('*', (req, res) => res.sendFile(path.join(clientBuild, 'index.html')));
+}
 
 // Обработка ошибок
 app.use(errorHandler);
