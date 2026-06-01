@@ -47,3 +47,6 @@ logs/
 error.log
 combined.log
 debug.log 
+# Загруженные/сгенерированные файлы (не коммитим)
+server/uploads/*
+!server/uploads/.gitkeep
