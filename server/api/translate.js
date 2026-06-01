@@ -6,11 +6,12 @@ const path = require('path');
 const fs = require('fs').promises;
 const { v4: uuidv4 } = require('uuid');
 const DocumentProcessor = require('../documentProcessor');
-const Translator = require('../services/Translator');
+const { createTranslator } = require('../core/translation');
+const { toBlocks } = require('../services/textDocument');
 
 // Инициализируем сервисы
 const documentProcessor = new DocumentProcessor();
-const translator = new Translator();
+const translator = createTranslator();
 
 // Создаем очередь для обработки документов
 const documentQueue = new Queue('document-processing', {
@@ -61,17 +62,18 @@ documentQueue.process('translate', async (job) => {
     // Обновляем прогресс: Начало обработки
     await job.progress(10);
     
-    // Обрабатываем документ
-    const processedDocument = await documentProcessor.processDocument(filePath, targetLang);
+    // Обрабатываем документ (плоский текст)
+    const processed = await documentProcessor.processDocument(filePath, targetLang);
     await job.progress(50);
-    
-    // Переводим документ
-    const translatedDocument = await translator.translateDocument(processedDocument.content, targetLang);
+
+    // Разбиваем на блоки и переводим
+    const blocks = toBlocks(processed.content);
+    const translatedBlocks = await translator.translateDocument(blocks, targetLang);
     await job.progress(80);
-    
+
     // Генерируем переведенный файл
     const outputPath = path.join(path.dirname(filePath), `translated_${path.basename(filePath)}`);
-    await documentProcessor.generateTranslatedDocument(translatedDocument, outputPath);
+    await documentProcessor.generateTranslatedDocument(translatedBlocks, outputPath);
     await job.progress(100);
     
     return {
