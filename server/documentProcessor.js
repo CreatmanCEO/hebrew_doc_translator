@@ -2,6 +2,7 @@ const path = require('path');
 const mammoth = require('mammoth');
 const ValidationService = require('./services/ValidationService');
 const fs = require('fs').promises;
+const fsSync = require('fs'); // createWriteStream lives on the sync fs, not fs.promises
 const pdf = require('pdf-parse');
 const PDFDocument = require('pdfkit');
 const docx = require('docx');
@@ -71,7 +72,7 @@ class DocumentProcessor {
       margin: 50
     });
 
-    const writeStream = fs.createWriteStream(outputPath);
+    const writeStream = fsSync.createWriteStream(outputPath);
     doc.pipe(writeStream);
 
     if (Array.isArray(content)) {
