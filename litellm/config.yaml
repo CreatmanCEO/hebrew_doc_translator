@@ -1,0 +1,19 @@
+model_list:
+  - model_name: translate
+    litellm_params:
+      model: openrouter/anthropic/claude-sonnet-4
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: translate            # fallback provider for the same alias
+    litellm_params:
+      model: gemini/gemini-1.5-pro
+      api_key: os.environ/GEMINI_API_KEY
+  - model_name: detect
+    litellm_params:
+      model: gemini/gemini-1.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+litellm_settings:
+  num_retries: 2
+  request_timeout: 60
+router_settings:
+  routing_strategy: simple-shuffle
+  fallbacks: [{ "translate": ["translate"] }]
