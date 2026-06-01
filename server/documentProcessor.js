@@ -6,6 +6,12 @@ const fsSync = require('fs'); // createWriteStream lives on the sync fs, not fs.
 const pdf = require('pdf-parse');
 const PDFDocument = require('pdfkit');
 const docx = require('docx');
+const { assertDocxSafe } = require('./services/zipGuard');
+
+// DoS resource caps. Read directly from env (config isn't wired into the
+// process bootstrap yet) with the same numeric fallbacks as server/config/env.js.
+const MAX_PAGES = Number(process.env.MAX_PAGES) || 50;
+const MAX_DOCX_UNCOMPRESSED = Number(process.env.MAX_DOCX_UNCOMPRESSED_MB || 100) * 1024 * 1024;
 
 class DocumentProcessor {
   constructor() {
@@ -20,9 +26,16 @@ class DocumentProcessor {
     try {
       if (fileExt === 'pdf') {
         const dataBuffer = await fs.readFile(filePath);
-        const pdfData = await pdf(dataBuffer);
+        // Cap pages parsed; pdf-parse stops after `max` pages but still reports
+        // the true page count in numpages, so we can reject oversized docs.
+        const pdfData = await pdf(dataBuffer, { max: MAX_PAGES });
+        if (pdfData.numpages > MAX_PAGES) {
+          throw new Error('TOO_MANY_PAGES');
+        }
         content = pdfData.text;
       } else if (fileExt === 'docx') {
+        // Guard against DOCX zip bombs before handing the file to mammoth.
+        await assertDocxSafe(filePath, MAX_DOCX_UNCOMPRESSED);
         const result = await mammoth.extractRawText({ path: filePath });
         content = result.value;
       } else {
