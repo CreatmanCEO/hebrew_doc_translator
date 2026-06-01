@@ -9,6 +9,7 @@ const { v4: uuidv4 } = require('uuid');
 const DocumentProcessor = require('../documentProcessor');
 const { createTranslator } = require('../core/translation');
 const { toBlocks } = require('../services/textDocument');
+const { validateMagicBytes } = require('../middleware/fileValidation');
 
 // Инициализируем сервисы
 const documentProcessor = new DocumentProcessor();
@@ -168,6 +169,19 @@ router.post('/translate', (req, res) => {
         return res.status(400).json({
           success: false,
           message: 'Файл не был загружен'
+        });
+      }
+
+      // Проверяем реальное содержимое файла по магическим байтам.
+      // mimetype/расширение легко подделать, поэтому доверяем только сигнатуре.
+      const ext = path.extname(req.file.originalname).slice(1).toLowerCase();
+      const magic = await validateMagicBytes(req.file.path, ext);
+      if (!magic.valid) {
+        console.error('Magic-byte validation failed:', { ext, reason: magic.reason });
+        await fs.unlink(req.file.path).catch(() => {});
+        return res.status(400).json({
+          success: false,
+          message: 'Файл не прошёл проверку: содержимое не соответствует типу'
         });
       }
 
