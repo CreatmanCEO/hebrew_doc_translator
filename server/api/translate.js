@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const crypto = require('crypto');
 const fs = require('fs').promises;
 const { v4: uuidv4 } = require('uuid');
 const DocumentProcessor = require('../documentProcessor');
@@ -71,8 +72,11 @@ documentQueue.process('translate', async (job) => {
     const translatedBlocks = await translator.translateDocument(blocks, targetLang);
     await job.progress(80);
 
-    // Генерируем переведенный файл
-    const outputPath = path.join(path.dirname(filePath), `translated_${path.basename(filePath)}`);
+    // Генерируем переведенный файл с непредсказуемым именем-токеном
+    const outputPath = path.join(
+      path.dirname(filePath),
+      `translated_${crypto.randomUUID()}${path.extname(filePath)}`
+    );
     await documentProcessor.generateTranslatedDocument(translatedBlocks, outputPath);
     await job.progress(100);
     
@@ -206,15 +210,35 @@ router.post('/translate', (req, res) => {
   });
 });
 
+// Допустимое имя скачиваемого файла: только токен-имена переведённых документов
+const DOWNLOAD_FILENAME_RE = /^translated_[0-9a-fA-F-]+\.(pdf|docx)$/;
+const DOWNLOAD_TTL_MS = Number(process.env.DOWNLOAD_TTL_MS) || 15 * 60 * 1000;
+
 // Маршрут для скачивания переведенного документа
 router.get('/download/:filename', async (req, res) => {
   try {
-    const filename = req.params.filename;
+    // Нормализуем имя, чтобы исключить любые попытки обхода пути (path traversal)
+    const filename = path.basename(req.params.filename);
+
+    if (!DOWNLOAD_FILENAME_RE.test(filename)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Недопустимое имя файла'
+      });
+    }
+
     const filePath = path.join(__dirname, '../uploads', filename);
-    
+
     // Проверяем существование файла
     await fs.access(filePath);
-    
+
+    // После завершения отдачи планируем удаление файла по TTL
+    res.on('finish', () => {
+      setTimeout(() => {
+        fs.unlink(filePath).catch(() => {});
+      }, DOWNLOAD_TTL_MS);
+    });
+
     res.download(filePath);
   } catch (error) {
     console.error('Download error:', error);

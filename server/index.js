@@ -10,6 +10,7 @@ require('dotenv').config();
 const { errorHandler } = require('./middleware/errorHandler');
 const ProgressTracker = require('./middleware/progressTracker');
 const translateRouter = require('./api/translate');
+const healthRouter = require('./api/health');
 
 // Создаем express приложение
 const app = express();
@@ -55,11 +56,9 @@ app.set('progressTracker', progressTracker);
 // Делаем app доступным глобально для очереди
 global.app = app;
 
-// Статические файлы
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
 // API маршруты
 app.use('/api', translateRouter);
+app.use('/api', healthRouter);
 
 // Базовые middleware - после маршрутов API
 app.use(express.json());
