@@ -16,32 +16,42 @@ const healthRouter = require('./api/health');
 const app = express();
 const server = http.createServer(app);
 
+// Разрешённые источники CORS из env (csv) с dev-фолбэком
+const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 // Настраиваем Socket.IO
 const io = socketIO(server, {
   cors: {
-    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+    origin: corsOrigins,
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true
   }
 });
 
-// Базовые middleware
+// Безопасность. CSP отключаем на Phase 0 (мешает отдаваемому SPA); ужесточить в Phase 5.
 app.set('trust proxy', 1);
-// app.use(helmet()); // Временно отключаем helmet
+app.use(helmet({ contentSecurityPolicy: false }));
 
-// Настраиваем CORS
+// Настраиваем CORS из env
 app.use(cors({
-  origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+  origin: corsOrigins,
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Content-Length", "Authorization"],
   credentials: true
 }));
 
-// Rate limiting
+// Парсеры тела — ДО маршрутов (multipart-загрузки обрабатывает multer в роуте)
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Rate limiting (из env)
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 минут
-  max: 100 // максимум 100 запросов с одного IP
+  windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: Number(process.env.RATE_LIMIT_MAX) || 100
 });
 app.use(limiter);
 
@@ -63,10 +73,6 @@ global.app = app;
 // API маршруты
 app.use('/api', translateRouter);
 app.use('/api', healthRouter);
-
-// Базовые middleware - после маршрутов API
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // Обработка ошибок
 app.use(errorHandler);
