@@ -1,88 +1,80 @@
-# Настройка переменных окружения
+# Hebrew Document Translator
 
-## Начальная настройка
+Web service that translates Hebrew documents (PDF / DOCX) to English, preserving
+document structure. Built around a clean translation core with pluggable AI
+providers routed through a LiteLLM proxy (Claude via OpenRouter, Gemini fallback).
 
-1. Скопируйте файл с примером переменных окружения:
+> **Status — Phase 0 (v0.1.0):** public text-level he→en translation, hardened and
+> deployable. Full layout-fidelity reconstruction (DOCX in-place XML, PDF overlay)
+> and scanned-document OCR are on the roadmap — see [CHANGELOG](./CHANGELOG.md) and
+> `docs/plans/2026-06-01-hebrew-translator-production-design.md`.
+
+## Features
+
+- Upload PDF or DOCX, get a translated document back.
+- Hebrew→English (he→ru/he→ar also supported by the core).
+- Async processing with live progress over WebSocket (per-session, isolated).
+- Translation caching (model- and prompt-version aware).
+- Security baseline: magic-byte validation, size/page/zip-bomb caps, token-named
+  TTL downloads, helmet, env-driven CORS + rate limiting.
+
+## Stack
+
+- **Backend:** Node.js ≥18, Express, Bull + Redis (queue), Socket.IO.
+- **AI:** LiteLLM proxy → Claude Sonnet 4.x (OpenRouter) with Gemini fallback. **No OpenAI.**
+- **Docs:** `pdf-parse` / `mammoth` (extract), `pdfkit` / `docx` (generate).
+- **Frontend:** React (CRA), MUI.
+- **Tests:** vitest (server), Playwright (e2e).
+
+## Architecture
+
+```
+React client ──► Express API ──► Bull/Redis queue ──► worker
+                     │                                   │
+              Socket.IO (rooms)                  core Translator (DI)
+                                                        │
+                                                 LiteLLMProvider ──► LiteLLM proxy
+                                                                      ├─ OpenRouter (Claude)
+                                                                      └─ Gemini (fallback)
+```
+
+## Run (development)
+
 ```bash
-cp .env.example .env
+# 1. install (peer-dep workaround required)
+npm install --legacy-peer-deps
+cd client && npm install && cd ..
+
+# 2. configure
+cp .env.example .env   # fill in keys (see Environment)
+
+# 3. start Redis + LiteLLM (Docker) and the app
+docker compose up redis litellm -d
+npm run dev          # API on :3001
+npm run client       # client on :3000  (or: npm run dev:full)
 ```
 
-2. Отредактируйте файл `.env` и добавьте ваши значения:
+Run server tests: `npm test`.
 
-### Основные настройки
-```env
-PORT=3000
-```
+## Environment
 
-### Redis
-```env
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_PASSWORD=your_redis_password
-TRANSLATION_CACHE_TTL=604800  # 7 дней в секундах
-```
+See `.env.example`. Key variables:
 
-### OpenAI
-```env
-# Несколько ключей через запятую
-OPENAI_API_KEYS=key1,key2,key3
-OPENAI_ORG_IDS=org1,org2
-```
+| Var | Purpose |
+|-----|---------|
+| `OPENROUTER_API_KEY` | Claude via OpenRouter (required in production) |
+| `GEMINI_API_KEY` | Gemini fallback / detect |
+| `LITELLM_BASE_URL`, `LITELLM_MASTER_KEY` | LiteLLM proxy |
+| `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | queue / cache |
+| `CORS_ORIGINS` | comma-separated allowed origins |
+| `MAX_FILE_MB`, `MAX_PAGES`, `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_MS`, `DOWNLOAD_TTL_MS` | limits |
 
-### Google
-```env
-GOOGLE_GEMINI_KEY=your_gemini_key
-GOOGLE_MAPS_KEYS=key1,key2
-```
+## Deploy
 
-### Huggingface
-```env
-HUGGINGFACE_TOKEN=your_huggingface_token
-```
+Docker (`docker compose up --build`) or Coolify on the `sec` VPS at
+`translator.creatman.site` (services: app + redis + litellm, auto-TLS). CI builds
+and tests on push; Coolify auto-deploys `main`.
 
-### Другие API
-```env
-JUDGE0_API_KEY=your_judge0_key
-HUME_API_KEY=your_hume_key
-RAPID_API_KEY=your_rapid_api_key
-```
+## License
 
-### Ограничение запросов
-```env
-RATE_LIMIT_WINDOW=60000
-RATE_LIMIT_MAX=10
-```
-
-## Безопасность
-
-- Файл `.env` добавлен в `.gitignore`
-- НИКОГДА не коммитьте файл `.env` в репозиторий
-- Храните резервную копию `.env` в безопасном месте
-- Используйте разные ключи для разработки и продакшена
-
-## Проверка конфигурации
-
-Для проверки настройки переменных окружения используйте:
-
-```javascript
-const ApiKeyManager = require('./server/services/ApiKeyManager');
-const keyManager = new ApiKeyManager();
-
-// Проверка OpenAI ключей
-const openaiKey = await keyManager.getValidOpenAIKey();
-console.log('Valid OpenAI key:', openaiKey);
-
-// Проверка других сервисов
-const geminiKey = keyManager.getServiceKey('gemini');
-console.log('Gemini key:', geminiKey);
-```
-
-## Обновление ключей
-
-1. Остановите сервер
-2. Обновите значения в файле `.env`
-3. Очистите Redis кэш:
-```javascript
-await keyManager.clearBlacklist();
-```
-4. Перезапустите сервер 
+MIT — see [LICENSE](./LICENSE).
