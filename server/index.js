@@ -48,6 +48,10 @@ app.use(limiter);
 // Сохраняем io для использования в маршрутах
 app.set('io', io);
 
+// Регистрируем per-session комнаты (изоляция событий по sessionId)
+const { registerRooms } = require('./socket/rooms');
+registerRooms(io);
+
 // Инициализация ProgressTracker
 const progressTracker = new ProgressTracker(io);
 progressTracker.setupSocketHandlers();

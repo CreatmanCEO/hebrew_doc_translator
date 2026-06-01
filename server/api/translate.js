@@ -10,6 +10,7 @@ const DocumentProcessor = require('../documentProcessor');
 const { createTranslator } = require('../core/translation');
 const { toBlocks } = require('../services/textDocument');
 const { validateMagicBytes } = require('../middleware/fileValidation');
+const { emitToSession } = require('../socket/rooms');
 
 // Инициализируем сервисы
 const documentProcessor = new DocumentProcessor();
@@ -26,34 +27,28 @@ const documentQueue = new Queue('document-processing', {
 // Настраиваем обработчики событий очереди
 documentQueue.on('progress', (job, progress) => {
   const io = global.app.get('io');
-  if (io) {
-    io.emit('translation:progress', {
-      jobId: job.id,
-      progress,
-      status: 'processing'
-    });
-  }
+  emitToSession(io, job.data.sessionId, 'translation:progress', {
+    jobId: job.id,
+    progress,
+    status: 'processing'
+  });
 });
 
 documentQueue.on('completed', (job, result) => {
   const io = global.app.get('io');
-  if (io) {
-    io.emit('translation:complete', {
-      jobId: job.id,
-      message: 'Перевод завершен',
-      downloadUrl: `/api/download/${result.filename}`
-    });
-  }
+  emitToSession(io, job.data.sessionId, 'translation:complete', {
+    jobId: job.id,
+    message: 'Перевод завершен',
+    downloadUrl: `/api/download/${result.filename}`
+  });
 });
 
 documentQueue.on('failed', (job, error) => {
   const io = global.app.get('io');
-  if (io) {
-    io.emit('translation:error', {
-      jobId: job.id,
-      message: error.message
-    });
-  }
+  emitToSession(io, job.data.sessionId, 'translation:error', {
+    jobId: job.id,
+    message: error.message
+  });
 });
 
 // Обработчик процесса перевода
@@ -187,6 +182,7 @@ router.post('/translate', (req, res) => {
 
       const sourceLang = req.body.sourceLang || 'he';
       const targetLang = req.body.targetLang || 'ru';
+      const sessionId = req.body.sessionId;
 
       console.log('Starting translation:', {
         file: req.file.filename,
@@ -199,7 +195,8 @@ router.post('/translate', (req, res) => {
         filePath: req.file.path,
         sourceLang,
         targetLang,
-        originalName: req.file.originalname
+        originalName: req.file.originalname,
+        sessionId
       }, {
         // DoS guard: kill stuck jobs and don't pile up retries on bad input.
         timeout: 120000,

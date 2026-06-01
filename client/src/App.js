@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Container, Typography, Box, Paper } from '@mui/material';
 import { SnackbarProvider } from 'notistack';
 import io from 'socket.io-client';
@@ -17,13 +17,21 @@ function App() {
 
   const [socket, setSocket] = React.useState(null);
 
+  // Стабильный идентификатор сессии: события прогресса приходят только в нашу комнату
+  const sessionId = useMemo(
+    () => (window.crypto && window.crypto.randomUUID
+      ? window.crypto.randomUUID()
+      : String(Date.now()) + Math.random()),
+    []
+  );
+
   // Инициализация WebSocket соединения
   useEffect(() => {
-    const newSocket = io('http://localhost:3001');
+    const newSocket = io('http://localhost:3001', { query: { sessionId } });
     setSocket(newSocket);
 
     return () => newSocket.close();
-  }, []);
+  }, [sessionId]);
 
   // Обработка WebSocket событий
   useEffect(() => {
@@ -75,6 +83,7 @@ function App() {
       formData.append('file', file);
       formData.append('targetLang', targetLang);
       formData.append('sourceLang', 'he'); // Исходный язык всегда иврит
+      formData.append('sessionId', sessionId);
 
       const response = await fetch('http://localhost:3001/api/translate', {
         method: 'POST',
