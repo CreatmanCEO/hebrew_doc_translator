@@ -1,8 +1,14 @@
 # Hebrew Document Translator
 
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Status](https://img.shields.io/badge/status-Phase%200%20live-brightgreen)
+![Platform](https://img.shields.io/badge/platform-Node.js%2018%2B-339933?logo=node.js&logoColor=white)
+
+[Русская версия](README.ru.md) · Live: **https://translator.creatman.site**
+
 Web service that translates Hebrew documents (PDF / DOCX) to English, preserving
 document structure. Built around a clean translation core with pluggable AI
-providers routed through a LiteLLM proxy (Claude via OpenRouter, Gemini fallback).
+providers routed through a LiteLLM proxy (Gemini free tier primary, Claude via OpenRouter fallback).
 
 > **Status — Phase 0 (v0.1.0):** public text-level he→en translation, hardened and
 > deployable. Full layout-fidelity reconstruction (DOCX in-place XML, PDF overlay)

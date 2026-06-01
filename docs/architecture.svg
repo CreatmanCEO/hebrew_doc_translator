@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 360" font-family="-apple-system,Segoe UI,Roboto,sans-serif" font-size="13">
+  <style>
+    .box{fill:#f6f8fa;stroke:#24292f;stroke-width:1.4;rx:6;ry:6}
+    .accent{fill:#dbeafe;stroke:#1d4ed8}
+    .out{fill:#dcfce7;stroke:#15803d}
+    .lbl{fill:#24292f}
+    .arrow{stroke:#57606a;stroke-width:1.6;fill:none;marker-end:url(#a)}
+    .title{font-weight:600;font-size:14px}
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#57606a"/>
+    </marker>
+  </defs>
+  <text x="450" y="26" text-anchor="middle" class="title">Hebrew Document Translator — pipeline</text>
+
+  <rect class="box accent" x="20"  y="60" width="140" height="60"/>
+  <text x="90"  y="86" text-anchor="middle" class="lbl">Upload</text>
+  <text x="90"  y="104" text-anchor="middle" class="lbl" font-size="11">PDF / DOCX</text>
+
+  <rect class="box" x="190" y="60" width="160" height="60"/>
+  <text x="270" y="86" text-anchor="middle" class="lbl">Analyze + Layout</text>
+  <text x="270" y="104" text-anchor="middle" class="lbl" font-size="11">DocumentAnalyzer / LayoutExtractor</text>
+
+  <rect class="box" x="380" y="60" width="160" height="60"/>
+  <text x="460" y="86" text-anchor="middle" class="lbl">Detect language</text>
+  <text x="460" y="104" text-anchor="middle" class="lbl" font-size="11">franc + heuristics</text>
+
+  <rect class="box" x="570" y="60" width="160" height="60"/>
+  <text x="650" y="86" text-anchor="middle" class="lbl">Translate Hebrew</text>
+  <text x="650" y="104" text-anchor="middle" class="lbl" font-size="11">Google / OpenAI</text>
+
+  <rect class="box out" x="760" y="60" width="120" height="60"/>
+  <text x="820" y="86" text-anchor="middle" class="lbl">Reassemble</text>
+  <text x="820" y="104" text-anchor="middle" class="lbl" font-size="11">DOCX / PDF</text>
+
+  <path class="arrow" d="M160,90 L190,90"/>
+  <path class="arrow" d="M350,90 L380,90"/>
+  <path class="arrow" d="M540,90 L570,90"/>
+  <path class="arrow" d="M730,90 L760,90"/>
+
+  <rect class="box" x="190" y="180" width="160" height="60"/>
+  <text x="270" y="206" text-anchor="middle" class="lbl">OCR fallback</text>
+  <text x="270" y="224" text-anchor="middle" class="lbl" font-size="11">tesseract.js</text>
+
+  <rect class="box" x="380" y="180" width="160" height="60"/>
+  <text x="460" y="206" text-anchor="middle" class="lbl">Bull queue</text>
+  <text x="460" y="224" text-anchor="middle" class="lbl" font-size="11">Redis / ioredis</text>
+
+  <rect class="box" x="570" y="180" width="160" height="60"/>
+  <text x="650" y="206" text-anchor="middle" class="lbl">Progress</text>
+  <text x="650" y="224" text-anchor="middle" class="lbl" font-size="11">Socket.IO</text>
+
+  <path class="arrow" d="M270,120 L270,180"/>
+  <path class="arrow" d="M460,120 L460,180"/>
+  <path class="arrow" d="M650,120 L650,180"/>
+
+  <text x="450" y="300" text-anchor="middle" class="lbl" font-size="11">RTL/LTR preserved · images repositioned · only Hebrew blocks rewritten</text>
+</svg>
