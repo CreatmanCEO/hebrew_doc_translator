@@ -5,47 +5,63 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const { errorHandler } = require('./middleware/errorHandler');
 const ProgressTracker = require('./middleware/progressTracker');
 const translateRouter = require('./api/translate');
+const healthRouter = require('./api/health');
 
 // Создаем express приложение
 const app = express();
 const server = http.createServer(app);
 
+// Разрешённые источники CORS из env (csv) с dev-фолбэком
+const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 // Настраиваем Socket.IO
 const io = socketIO(server, {
   cors: {
-    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+    origin: corsOrigins,
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true
   }
 });
 
-// Базовые middleware
+// Безопасность. CSP отключаем на Phase 0 (мешает отдаваемому SPA); ужесточить в Phase 5.
 app.set('trust proxy', 1);
-// app.use(helmet()); // Временно отключаем helmet
+app.use(helmet({ contentSecurityPolicy: false }));
 
-// Настраиваем CORS
+// Настраиваем CORS из env
 app.use(cors({
-  origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+  origin: corsOrigins,
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Content-Length", "Authorization"],
   credentials: true
 }));
 
-// Rate limiting
+// Парсеры тела — ДО маршрутов (multipart-загрузки обрабатывает multer в роуте)
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Rate limiting (из env)
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 минут
-  max: 100 // максимум 100 запросов с одного IP
+  windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: Number(process.env.RATE_LIMIT_MAX) || 100
 });
 app.use(limiter);
 
 // Сохраняем io для использования в маршрутах
 app.set('io', io);
+
+// Регистрируем per-session комнаты (изоляция событий по sessionId)
+const { registerRooms } = require('./socket/rooms');
+registerRooms(io);
 
 // Инициализация ProgressTracker
 const progressTracker = new ProgressTracker(io);
@@ -55,15 +71,16 @@ app.set('progressTracker', progressTracker);
 // Делаем app доступным глобально для очереди
 global.app = app;
 
-// Статические файлы
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
 // API маршруты
 app.use('/api', translateRouter);
+app.use('/api', healthRouter);
 
-// Базовые middleware - после маршрутов API
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Отдаём собранный React-клиент (в проде); SPA-fallback на index.html
+const clientBuild = path.join(__dirname, '..', 'client', 'build');
+if (fs.existsSync(clientBuild)) {
+  app.use(express.static(clientBuild));
+  app.get('*', (req, res) => res.sendFile(path.join(clientBuild, 'index.html')));
+}
 
 // Обработка ошибок
 app.use(errorHandler);

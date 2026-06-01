@@ -3,14 +3,18 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const crypto = require('crypto');
 const fs = require('fs').promises;
 const { v4: uuidv4 } = require('uuid');
 const DocumentProcessor = require('../documentProcessor');
-const Translator = require('../services/Translator');
+const { createTranslator } = require('../core/translation');
+const { toBlocks } = require('../services/textDocument');
+const { validateMagicBytes } = require('../middleware/fileValidation');
+const { emitToSession } = require('../socket/rooms');
 
 // Инициализируем сервисы
 const documentProcessor = new DocumentProcessor();
-const translator = new Translator();
+const translator = createTranslator();
 
 // Создаем очередь для обработки документов
 const documentQueue = new Queue('document-processing', {
@@ -23,34 +27,28 @@ const documentQueue = new Queue('document-processing', {
 // Настраиваем обработчики событий очереди
 documentQueue.on('progress', (job, progress) => {
   const io = global.app.get('io');
-  if (io) {
-    io.emit('translation:progress', {
-      jobId: job.id,
-      progress,
-      status: 'processing'
-    });
-  }
+  emitToSession(io, job.data.sessionId, 'translation:progress', {
+    jobId: job.id,
+    progress,
+    status: 'processing'
+  });
 });
 
 documentQueue.on('completed', (job, result) => {
   const io = global.app.get('io');
-  if (io) {
-    io.emit('translation:complete', {
-      jobId: job.id,
-      message: 'Перевод завершен',
-      downloadUrl: `/api/download/${result.filename}`
-    });
-  }
+  emitToSession(io, job.data.sessionId, 'translation:complete', {
+    jobId: job.id,
+    message: 'Перевод завершен',
+    downloadUrl: `/api/download/${result.filename}`
+  });
 });
 
 documentQueue.on('failed', (job, error) => {
   const io = global.app.get('io');
-  if (io) {
-    io.emit('translation:error', {
-      jobId: job.id,
-      message: error.message
-    });
-  }
+  emitToSession(io, job.data.sessionId, 'translation:error', {
+    jobId: job.id,
+    message: error.message
+  });
 });
 
 // Обработчик процесса перевода
@@ -61,17 +59,21 @@ documentQueue.process('translate', async (job) => {
     // Обновляем прогресс: Начало обработки
     await job.progress(10);
     
-    // Обрабатываем документ
-    const processedDocument = await documentProcessor.processDocument(filePath, targetLang);
+    // Обрабатываем документ (плоский текст)
+    const processed = await documentProcessor.processDocument(filePath, targetLang);
     await job.progress(50);
-    
-    // Переводим документ
-    const translatedDocument = await translator.translateDocument(processedDocument.content, targetLang);
+
+    // Разбиваем на блоки и переводим
+    const blocks = toBlocks(processed.content);
+    const translatedBlocks = await translator.translateDocument(blocks, targetLang);
     await job.progress(80);
-    
-    // Генерируем переведенный файл
-    const outputPath = path.join(path.dirname(filePath), `translated_${path.basename(filePath)}`);
-    await documentProcessor.generateTranslatedDocument(translatedDocument, outputPath);
+
+    // Генерируем переведенный файл с непредсказуемым именем-токеном
+    const outputPath = path.join(
+      path.dirname(filePath),
+      `translated_${crypto.randomUUID()}${path.extname(filePath)}`
+    );
+    await documentProcessor.generateTranslatedDocument(translatedBlocks, outputPath);
     await job.progress(100);
     
     return {
@@ -135,7 +137,7 @@ const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 50 * 1024 * 1024 // 50MB
+    fileSize: (Number(process.env.MAX_FILE_MB) || 25) * 1024 * 1024
   }
 }).single('file');
 
@@ -165,8 +167,22 @@ router.post('/translate', (req, res) => {
         });
       }
 
+      // Проверяем реальное содержимое файла по магическим байтам.
+      // mimetype/расширение легко подделать, поэтому доверяем только сигнатуре.
+      const ext = path.extname(req.file.originalname).slice(1).toLowerCase();
+      const magic = await validateMagicBytes(req.file.path, ext);
+      if (!magic.valid) {
+        console.error('Magic-byte validation failed:', { ext, reason: magic.reason });
+        await fs.unlink(req.file.path).catch(() => {});
+        return res.status(400).json({
+          success: false,
+          message: 'Файл не прошёл проверку: содержимое не соответствует типу'
+        });
+      }
+
       const sourceLang = req.body.sourceLang || 'he';
       const targetLang = req.body.targetLang || 'ru';
+      const sessionId = req.body.sessionId;
 
       console.log('Starting translation:', {
         file: req.file.filename,
@@ -179,7 +195,12 @@ router.post('/translate', (req, res) => {
         filePath: req.file.path,
         sourceLang,
         targetLang,
-        originalName: req.file.originalname
+        originalName: req.file.originalname,
+        sessionId
+      }, {
+        // DoS guard: kill stuck jobs and don't pile up retries on bad input.
+        timeout: 120000,
+        attempts: 1
       });
 
       res.json({
@@ -204,15 +225,35 @@ router.post('/translate', (req, res) => {
   });
 });
 
+// Допустимое имя скачиваемого файла: только токен-имена переведённых документов
+const DOWNLOAD_FILENAME_RE = /^translated_[0-9a-fA-F-]+\.(pdf|docx)$/;
+const DOWNLOAD_TTL_MS = Number(process.env.DOWNLOAD_TTL_MS) || 15 * 60 * 1000;
+
 // Маршрут для скачивания переведенного документа
 router.get('/download/:filename', async (req, res) => {
   try {
-    const filename = req.params.filename;
+    // Нормализуем имя, чтобы исключить любые попытки обхода пути (path traversal)
+    const filename = path.basename(req.params.filename);
+
+    if (!DOWNLOAD_FILENAME_RE.test(filename)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Недопустимое имя файла'
+      });
+    }
+
     const filePath = path.join(__dirname, '../uploads', filename);
-    
+
     // Проверяем существование файла
     await fs.access(filePath);
-    
+
+    // После завершения отдачи планируем удаление файла по TTL
+    res.on('finish', () => {
+      setTimeout(() => {
+        fs.unlink(filePath).catch(() => {});
+      }, DOWNLOAD_TTL_MS);
+    });
+
     res.download(filePath);
   } catch (error) {
     console.error('Download error:', error);

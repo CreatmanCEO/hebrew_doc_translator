@@ -1,73 +1,34 @@
 # Переводчик документов с иврита
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/CreatmanCEO/hebrew_doc_translator?style=flat)](https://github.com/CreatmanCEO/hebrew_doc_translator/stargazers)
-[![Validate](https://github.com/CreatmanCEO/hebrew_doc_translator/actions/workflows/validate.yml/badge.svg)](https://github.com/CreatmanCEO/hebrew_doc_translator/actions/workflows/validate.yml)
-![Status](https://img.shields.io/badge/status-beta-yellow)
-![Platform](https://img.shields.io/badge/platform-Node.js%2018%2B-339933?logo=node.js&logoColor=white)
+![Status](https://img.shields.io/badge/status-Phase%200%20live-brightgreen)
 
-[English version](README.md)
+[English version](README.md) · Live: **https://translator.creatman.site**
 
-Веб-приложение для перевода PDF и DOCX документов с иврита на русский или английский с сохранением вёрстки, изображений и блоков со смешанными языками. Ивритский текст определяется поблочно, переводится и записывается обратно в документ с правильной обработкой RTL/LTR.
+Веб-сервис для перевода документов (PDF / DOCX) с иврита на английский с сохранением
+структуры документа. Чистое ядро перевода с подключаемыми AI-провайдерами через
+LiteLLM-прокси (Gemini free tier — основной, Claude через OpenRouter — fallback).
 
-## Зачем это
+> **Статус — Phase 0 (v0.1.0):** публичный перевод he→en текстового уровня, захардненный
+> и развёрнутый. Полная реконструкция вёрстки (DOCX in-place XML, PDF overlay) и OCR для
+> сканов — на роадмапе. См. [CHANGELOG](./CHANGELOG.md) и
+> `docs/plans/2026-06-01-hebrew-translator-production-design.md`.
 
-Готовые переводчики либо ломают форматирование, либо плохо работают с документами, где иврит перемешан с латиницей и кириллицей. Здесь сохраняется исходная структура (абзацы, таблицы, изображения, разметка страниц), а переводятся только ивритские фрагменты — на выходе документ выглядит как оригинал, но на нужном языке.
-
-## Как работает
-
-1. **Загрузка** — PDF или DOCX через веб-клиент.
-2. **Анализ** — `DocumentAnalyzer` и `LayoutExtractor` обходят дерево документа и извлекают текстовые блоки с координатами.
-3. **Определение языка** — `franc` + эвристика помечают каждый блок как ивритский / неивритский.
-4. **Перевод** — ивритские блоки уходят в Google Translate или OpenAI; остальные проходят без изменений.
-5. **Сборка** — текст пишется обратно в новый DOCX (`docx`) или PDF (`pdfkit`) с сохранением порядка, направления RTL и позиций изображений.
-6. **Выдача** — файл возвращается через прогресс по Socket.IO и HTTP-загрузку.
-
-Очередь на Bull/Redis обрабатывает длинные задачи; для сканированных PDF подключается OCR (`tesseract.js`).
+## Возможности
+- Загрузка PDF или DOCX, скачивание переведённого документа.
+- he→en (ядро также поддерживает he→ru/he→ar).
+- Асинхронная обработка с прогрессом по WebSocket (изолированно по сессии).
+- Кэш переводов (с учётом модели и версии промпта).
+- Security-базлайн: валидация по magic-bytes, лимиты размера/страниц/zip-bomb,
+  скачивание по токену с TTL, helmet, CORS и rate-limit из env.
 
 ## Стек
+Node.js ≥18, Express, Bull + Redis, Socket.IO; AI через LiteLLM (Gemini/Claude, **без OpenAI**);
+`pdf-parse`/`mammoth` (извлечение), `pdfkit`/`docx` (генерация); клиент React (CRA), MUI.
 
-| Слой | Инструменты |
-|---|---|
-| Сервер | Node.js, Express, Socket.IO |
-| Очередь | Bull на Redis (ioredis) |
-| Перевод | Google Cloud Translate, OpenAI |
-| Парсинг документов | `mammoth`, `docx`, `docx4js`, `pdf-parse`, `pdf.js-extract` |
-| OCR | `tesseract.js` |
-| Определение языка | `franc`, `hebrew-transliteration` |
-| Вывод | `docx`, `pdfkit` |
-| Тесты | Vitest, Jest (integration), Playwright (e2e) |
-| Ops | Docker, docker-compose |
+## Запуск и деплой
+См. [README.md](README.md) (разделы Run / Environment / Deploy). Деплой: Docker / Coolify
+на VPS `sec`, домен `translator.creatman.site`.
 
-Диаграмма пайплайна — [`docs/architecture.svg`](docs/architecture.svg).
-
-## Быстрый старт
-
-```bash
-cp .env.example .env   # заполнить GOOGLE_*/OPENAI_* и Redis URL
-npm install
-npm run dev:full       # сервер + клиент
-```
-
-Через Docker:
-
-```bash
-docker-compose up
-```
-
-## Ограничения
-
-- Определение иврита на очень коротких блоках (< 5 символов) может ошибаться — такие блоки могут остаться без перевода.
-- Сканированные PDF зависят от качества `tesseract.js` — рукописный ввод и шумные сканы не гарантированы.
-- Сложные элементы DOCX (сноски, вложенные диаграммы, режим правок) сохраняются как есть, но текст внутри не переводится.
-- Лимиты Google Translate / OpenAI ограничивают большие документы; очередь делает ретраи, но не обходит квоту.
-- Бета — интерфейс и API могут меняться.
-
-## Автор
-
-**Николай Подоляк** — независимый разработчик, автоматизация и интеграция AI.
-
-- GitHub: [@CreatmanCEO](https://github.com/CreatmanCEO)
-- Habr: [creatman](https://habr.com/ru/users/creatman/)
-- Telegram: [@Creatman_it](https://t.me/Creatman_it)
-- Сайт: [creatman.site](https://creatman.site)
+## Лицензия
+MIT — см. [LICENSE](./LICENSE).

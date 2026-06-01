@@ -1,104 +1,86 @@
 # Hebrew Document Translator
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/CreatmanCEO/hebrew_doc_translator?style=flat)](https://github.com/CreatmanCEO/hebrew_doc_translator/stargazers)
-[![Validate](https://github.com/CreatmanCEO/hebrew_doc_translator/actions/workflows/validate.yml/badge.svg)](https://github.com/CreatmanCEO/hebrew_doc_translator/actions/workflows/validate.yml)
-![Status](https://img.shields.io/badge/status-beta-yellow)
+![Status](https://img.shields.io/badge/status-Phase%200%20live-brightgreen)
 ![Platform](https://img.shields.io/badge/platform-Node.js%2018%2B-339933?logo=node.js&logoColor=white)
 
-[Русская версия](README.ru.md)
+[Русская версия](README.ru.md) · Live: **https://translator.creatman.site**
 
-Web app that translates PDF and DOCX documents from Hebrew into Russian or English while preserving layout, images, and mixed-language blocks. Hebrew text is detected per block, translated, and written back into the original document with RTL/LTR handling intact.
+Web service that translates Hebrew documents (PDF / DOCX) to English, preserving
+document structure. Built around a clean translation core with pluggable AI
+providers routed through a LiteLLM proxy (Gemini free tier primary, Claude via OpenRouter fallback).
 
-## Why this exists
+> **Status — Phase 0 (v0.1.0):** public text-level he→en translation, hardened and
+> deployable. Full layout-fidelity reconstruction (DOCX in-place XML, PDF overlay)
+> and scanned-document OCR are on the roadmap — see [CHANGELOG](./CHANGELOG.md) and
+> `docs/plans/2026-06-01-hebrew-translator-production-design.md`.
 
-Off-the-shelf translation tools either drop formatting or fail on documents with mixed Hebrew + Latin/Cyrillic content. This project keeps the source structure (paragraphs, tables, images, page layout) and only rewrites the Hebrew portions, so the output looks like the original — just translated.
+## Features
 
-## How it works
+- Upload PDF or DOCX, get a translated document back.
+- Hebrew→English (he→ru/he→ar also supported by the core).
+- Async processing with live progress over WebSocket (per-session, isolated).
+- Translation caching (model- and prompt-version aware).
+- Security baseline: magic-byte validation, size/page/zip-bomb caps, token-named
+  TTL downloads, helmet, env-driven CORS + rate limiting.
 
-1. **Upload** — PDF or DOCX through the web client.
-2. **Analyze** — `DocumentAnalyzer` and `LayoutExtractor` walk the document tree and extract text blocks with positioning metadata.
-3. **Detect language** — `franc` + heuristics tag each block as Hebrew / non-Hebrew.
-4. **Translate** — Hebrew blocks go through Google Translate or OpenAI; non-Hebrew blocks are passed through.
-5. **Reassemble** — text is written back into a fresh DOCX (`docx`) or PDF (`pdfkit`) preserving order, RTL direction, and image placement.
-6. **Deliver** — file is returned via Socket.IO progress updates and an HTTP download.
+## Stack
 
-A Redis-backed Bull queue handles long jobs; OCR (`tesseract.js`) is used as a fallback when PDFs contain scanned pages.
+- **Backend:** Node.js ≥18, Express, Bull + Redis (queue), Socket.IO.
+- **AI:** LiteLLM proxy → Claude Sonnet 4.x (OpenRouter) with Gemini fallback. **No OpenAI.**
+- **Docs:** `pdf-parse` / `mammoth` (extract), `pdfkit` / `docx` (generate).
+- **Frontend:** React (CRA), MUI.
+- **Tests:** vitest (server), Playwright (e2e).
 
-## Tech stack
+## Architecture
 
-| Layer | Tools |
-|---|---|
-| Server | Node.js, Express, Socket.IO |
-| Queue | Bull on Redis (ioredis) |
-| Translation | Google Cloud Translate, OpenAI |
-| Document parsing | `mammoth`, `docx`, `docx4js`, `pdf-parse`, `pdf.js-extract` |
-| OCR | `tesseract.js` |
-| Language detection | `franc`, `hebrew-transliteration` |
-| Output | `docx`, `pdfkit` |
-| Tests | Vitest, Jest (integration), Playwright (e2e) |
-| Ops | Docker, docker-compose |
+```
+React client ──► Express API ──► Bull/Redis queue ──► worker
+                     │                                   │
+              Socket.IO (rooms)                  core Translator (DI)
+                                                        │
+                                                 LiteLLMProvider ──► LiteLLM proxy
+                                                                      ├─ OpenRouter (Claude)
+                                                                      └─ Gemini (fallback)
+```
 
-See [`docs/architecture.svg`](docs/architecture.svg) for the pipeline diagram.
-
-## Quick start
+## Run (development)
 
 ```bash
-cp .env.example .env   # fill GOOGLE_*/OPENAI_* and Redis URL
-npm install
-npm run dev:full       # server + client
+# 1. install (peer-dep workaround required)
+npm install --legacy-peer-deps
+cd client && npm install && cd ..
+
+# 2. configure
+cp .env.example .env   # fill in keys (see Environment)
+
+# 3. start Redis + LiteLLM (Docker) and the app
+docker compose up redis litellm -d
+npm run dev          # API on :3001
+npm run client       # client on :3000  (or: npm run dev:full)
 ```
 
-Or with Docker:
+Run server tests: `npm test`.
 
-```bash
-docker-compose up
-```
+## Environment
 
-## Tests
+See `.env.example`. Key variables:
 
-```bash
-npm test               # unit (vitest)
-npm run test:integration
-npm run test:e2e       # playwright
-```
+| Var | Purpose |
+|-----|---------|
+| `OPENROUTER_API_KEY` | Claude via OpenRouter (required in production) |
+| `GEMINI_API_KEY` | Gemini fallback / detect |
+| `LITELLM_BASE_URL`, `LITELLM_MASTER_KEY` | LiteLLM proxy |
+| `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | queue / cache |
+| `CORS_ORIGINS` | comma-separated allowed origins |
+| `MAX_FILE_MB`, `MAX_PAGES`, `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_MS`, `DOWNLOAD_TTL_MS` | limits |
 
-## Supported formats
+## Deploy
 
-| Format | Input | Output | Notes |
-|---|---|---|---|
-| PDF (text-based) | Yes | Yes | Layout and images preserved via `pdfkit` |
-| PDF (scanned) | Yes | Yes | Falls back to `tesseract.js` OCR; quality depends on scan |
-| DOCX | Yes | Yes | Paragraphs, tables, images, RTL markers retained |
+Docker (`docker compose up --build`) or Coolify on the `sec` VPS at
+`translator.creatman.site` (services: app + redis + litellm, auto-TLS). CI builds
+and tests on push; Coolify auto-deploys `main`.
 
-## Usage examples
+## License
 
-**Translate a Hebrew PDF to Russian via the web UI:**
-
-1. Open `http://localhost:3000` in your browser.
-2. Drag a `.pdf` or `.docx` file onto the upload area.
-3. Select target language (Russian or English).
-4. Click **Translate** — progress updates stream via Socket.IO.
-5. Download the translated file when the job finishes.
-
-**Architecture overview:**
-
-```
-Client (React)  -->  Express + Socket.IO  -->  Bull Queue (Redis)
-                                                   |
-                                          DocumentAnalyzer
-                                          LayoutExtractor
-                                          LanguageDetector (franc)
-                                          Translator (Google / Claude)
-                                          DocumentReassembler
-```
-
-## Limitations
-
-- Hebrew language detection on very short blocks (< 5 chars) can misfire; those blocks may be left untranslated.
-- Scanned PDFs depend on `tesseract.js` quality — handwriting and noisy scans are not reliable.
-- Complex DOCX features (footnotes, embedded charts, tracked changes) are preserved as-is but not translated inside.
-- Rate limits of Google Translate / OpenAI can throttle large documents; the Bull queue retries but does not bypass quota.
-- Beta — interface and API may change.
-
-EOF
+MIT — see [LICENSE](./LICENSE).

@@ -1,0 +1,22 @@
+# Phase 0 default: Gemini 2.0 Flash (free tier) is PRIMARY for `translate`,
+# Claude (OpenRouter) is the FALLBACK. Rationale: the OpenRouter key currently
+# has no credits. To restore Claude-primary (design preference) once OpenRouter
+# is funded, swap the `translate` and `translate-claude` model bodies below.
+model_list:
+  - model_name: translate
+    litellm_params:
+      model: gemini/gemini-2.0-flash
+      api_key: os.environ/GEMINI_API_KEY
+  - model_name: translate-claude
+    litellm_params:
+      model: openrouter/anthropic/claude-sonnet-4
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: detect
+    litellm_params:
+      model: gemini/gemini-2.0-flash
+      api_key: os.environ/GEMINI_API_KEY
+litellm_settings:
+  num_retries: 2
+  request_timeout: 60
+router_settings:
+  fallbacks: [{ "translate": ["translate-claude"] }]

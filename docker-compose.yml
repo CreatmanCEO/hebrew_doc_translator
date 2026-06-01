@@ -1,28 +1,33 @@
-version: "3.8"
-
 services:
   app:
     build: .
     ports:
-      - "3000:3000"
+      - "3001:3001"
     depends_on:
       redis:
         condition: service_healthy
+      litellm:
+        condition: service_started
     environment:
-      - NODE_ENV=development
-      - PORT=3000
+      - NODE_ENV=production
+      - PORT=3001
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-    volumes:
-      - ./server:/app/server
-      - ./client:/app/client
-      - /app/node_modules
-    command: npm run dev
+      - LITELLM_BASE_URL=http://litellm:4000
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+      - TRANSLATE_MODEL=translate
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://translator.creatman.site}
+      - MAX_FILE_MB=${MAX_FILE_MB:-25}
+      - MAX_PAGES=${MAX_PAGES:-50}
+      - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-30}
+      - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS:-900000}
+      - DOWNLOAD_TTL_MS=${DOWNLOAD_TTL_MS:-900000}
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -30,6 +35,18 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    volumes:
+      - ./litellm/config.yaml:/app/config.yaml:ro
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+    restart: unless-stopped
 
 volumes:
   redis_data:
