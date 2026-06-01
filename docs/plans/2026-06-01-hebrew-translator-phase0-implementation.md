@@ -8,7 +8,7 @@
 
 **Tech Stack:** Node ≥18, Express, Bull, ioredis, Socket.IO, vitest, multer, pdf-parse, mammoth, docx, pdfkit, Docker, Coolify.
 
-> **Sequencing note (needs operator OK):** The design lists LiteLLM in Phase 0. To reach prod fastest with zero new infra, Phase 0 ships with the existing `OpenRouterProvider` (model bumped to Claude Sonnet 4.x) wired through the same `AIProvider` interface. The LiteLLM proxy + multi-alias routing + free-MT + QA arrive in **Phase 3** as a drop-in `LiteLLMProvider` behind the identical interface. No rework — only an added adapter. If you want LiteLLM in Phase 0, insert Task 12b (stand up LiteLLM container + `LiteLLMProvider`) before deploy.
+> **Sequencing (operator decision 2026-06-01): LiteLLM in Phase 0.** Phase 0 stands up a LiteLLM proxy container with a single `translate` alias (→ `openrouter/anthropic/claude-sonnet-4`, fallback `gemini/gemini-pro`) and wires the core via a `LiteLLMProvider` adapter (OpenAI-compatible, same `AIProvider` interface as `OpenRouterProvider`). Multi-alias routing (`detect`/`mt-fast`/`qa`) + free-MT adapters are added in Phase 3 by extending the LiteLLM config — no app rework. See Task 4b.
 
 **Branch:** `feat/production-he-en` (already created; design doc committed at `e56c85b`).
 
@@ -74,7 +74,7 @@ describe('loadConfig', () => {
 
 **Step 2:** Run `npm test -- server/config` → FAIL (module not found).
 
-**Step 3: Implement** (`server/config/env.js`) using a small explicit validator (no env mutation; pure function over an env object). Keys: `NODE_ENV`, `PORT`(3001), `REDIS_HOST`/`REDIS_PORT`/`REDIS_PASSWORD`, `OPENROUTER_API_KEY` (required in production), `TRANSLATE_MODEL` (default `anthropic/claude-sonnet-4`), `CORS_ORIGINS` (csv), `MAX_FILE_MB`(25), `MAX_PAGES`(50), `RATE_LIMIT_MAX`(30), `RATE_LIMIT_WINDOW_MS`(900000), `DOWNLOAD_TTL_MS`(900000). Throw aggregated error listing every missing/invalid key.
+**Step 3: Implement** (`server/config/env.js`) using a small explicit validator (no env mutation; pure function over an env object). Keys: `NODE_ENV`, `PORT`(3001), `REDIS_HOST`/`REDIS_PORT`/`REDIS_PASSWORD`, `OPENROUTER_API_KEY` (required in production), `GEMINI_API_KEY` (fallback), `LITELLM_BASE_URL` (default `http://litellm:4000`), `LITELLM_MASTER_KEY`, `TRANSLATE_MODEL` (alias, default `translate`), `CORS_ORIGINS` (csv), `MAX_FILE_MB`(25), `MAX_PAGES`(50), `RATE_LIMIT_MAX`(30), `RATE_LIMIT_WINDOW_MS`(900000), `DOWNLOAD_TTL_MS`(900000). Throw aggregated error listing every missing/invalid key.
 
 **Step 4:** Run `npm test -- server/config` → PASS.
 
@@ -120,10 +120,12 @@ it('cache key changes with model', async () => {
 
 ---
 
-### Task 4: Bump model + wire core Translator into request path 🔴
+### Task 4: Wire core Translator into request path (via LiteLLMProvider) 🔴
+
+> Depends on Task 4b (LiteLLMProvider exists). The factory default provider becomes `LiteLLMProvider`; `model` defaults to the `translate` alias.
 
 **Files:**
-- Modify: `server/core/translation/index.js:21` (default model → `anthropic/claude-sonnet-4`; pass `model` to Translator options)
+- Modify: `server/core/translation/index.js:17-33` (default provider → `LiteLLMProvider`; model alias `translate`; pass `model` to Translator options)
 - Rewrite: `server/api/translate.js` (use `createTranslator` + text-level doc path; drop legacy `services/Translator` import)
 - Create: `server/services/textDocument.js` (flat-text extract + paragraph blocks + render)
 - Test: `server/services/__tests__/textDocument.test.js`
@@ -160,6 +162,43 @@ git rm server/services/Translator.js server/services/ApiKeyManager.js
 Run `npm test` (full) → green; manual grep `openai` across `server/` → only in package.json (removed next task).
 
 **Step 7:** Commit `feat: wire clean core Translator (Claude Sonnet 4.x) into request path; drop legacy OpenAI translator`.
+
+---
+
+### Task 4b: LiteLLM proxy + LiteLLMProvider adapter
+
+**Files:**
+- Create: `litellm/config.yaml` (model list + `translate` alias + fallback)
+- Create: `server/adapters/ai/LiteLLMProvider.js` (extends `AIProvider`)
+- Test: `server/adapters/ai/__tests__/litellmProvider.test.js` (mock fetch via `msw` or vi.fn)
+
+**Step 1: Failing test** — `translate()` POSTs to `${baseURL}/chat/completions` with `model: 'translate'`, parses `choices[0].message.content`, trims; on non-200 throws; on timeout aborts. Mock global `fetch`.
+
+**Step 2:** Run `npm test -- server/adapters/ai` → FAIL (module not found).
+
+**Step 3: Implement** `LiteLLMProvider` modeled on `OpenRouterProvider` but: `baseURL = opts.baseURL || process.env.LITELLM_BASE_URL` (e.g. `http://litellm:4000`), `apiKey = process.env.LITELLM_MASTER_KEY`, `model = opts.model || 'translate'`, `temperature: 0`. Same `buildSystemPrompt`, `translate`, `detectLanguage` (model `detect` later), `healthCheck` (GET `/health`).
+
+**Step 4:** Run → PASS.
+
+**Step 5: LiteLLM config** (`litellm/config.yaml`):
+```yaml
+model_list:
+  - model_name: translate
+    litellm_params:
+      model: openrouter/anthropic/claude-sonnet-4
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: translate            # fallback
+    litellm_params:
+      model: gemini/gemini-1.5-pro
+      api_key: os.environ/GEMINI_API_KEY
+litellm_settings:
+  num_retries: 2
+  request_timeout: 60
+router_settings:
+  fallbacks: [{ "translate": ["translate"] }]
+```
+
+**Step 6:** Commit `feat: LiteLLM proxy config + LiteLLMProvider adapter (translate alias)`.
 
 ---
 
@@ -293,10 +332,12 @@ it('does not static-serve uploads', async () => {
 
 **Files:**
 - Rewrite: `Dockerfile` (stage 1 build `client` → static; stage 2 node runtime serving API + static)
-- Rewrite: `docker-compose.yml` (services: `app`, `redis`)
+- Rewrite: `docker-compose.yml` (services: `app`, `redis`, `litellm`)
 - Modify: `server/index.js` (serve `client/build` static in production; SPA fallback)
 
-**Steps:** build locally `docker compose build`; `docker compose up`; smoke `curl localhost:3001/api/health` → 200. Commit `build: multi-stage Docker image + compose (app+redis)`.
+LiteLLM service: image `ghcr.io/berriai/litellm:main-latest`, mount `./litellm/config.yaml`, command `--config /app/config.yaml --port 4000`, env `OPENROUTER_API_KEY`/`GEMINI_API_KEY`/`LITELLM_MASTER_KEY`. App env `LITELLM_BASE_URL=http://litellm:4000`.
+
+**Steps:** build locally `docker compose build`; `docker compose up`; smoke `curl localhost:3001/api/health` → 200; `curl localhost:4000/health` → ok. Commit `build: multi-stage Docker image + compose (app+redis+litellm)`.
 
 ---
 
@@ -313,7 +354,7 @@ it('does not static-serve uploads', async () => {
 
 **Not code — runbook (operator + Claude with SSH):**
 1. DNS: add A record `translator.creatman.site` → `178.17.50.45`.
-2. Coolify: new project from `github.com/CreatmanCEO/hebrew_doc_translator`, branch `main` (after merge), services: app (this Dockerfile) + redis. Set env (`OPENROUTER_API_KEY`, `TRANSLATE_MODEL`, `REDIS_*`, `CORS_ORIGINS=https://translator.creatman.site`, caps). Domain + auto-TLS.
+2. Coolify: new project from `github.com/CreatmanCEO/hebrew_doc_translator`, branch `main` (after merge), services: app + redis + litellm. Set env (`OPENROUTER_API_KEY`, `GEMINI_API_KEY`, `LITELLM_MASTER_KEY`, `LITELLM_BASE_URL`, `TRANSLATE_MODEL=translate`, `REDIS_*`, `CORS_ORIGINS=https://translator.creatman.site`, caps). Domain + auto-TLS on app only (litellm/redis internal).
 3. Verify: `https://translator.creatman.site/api/health` 200; upload a Hebrew `.docx`, confirm he→en download; confirm `/uploads/x` 404; confirm rate limit triggers.
 4. Enable Coolify auto-deploy on push to `main`.
 
