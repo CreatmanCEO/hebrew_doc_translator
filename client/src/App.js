@@ -132,23 +132,19 @@ function App() {
     }
   };
 
-  const handleDownload = async () => {
+  const handleDownload = () => {
     if (!translationState.documentUrl) return;
-    
-    try {
-      const response = await fetch(translationState.documentUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `translated_${translationState.originalName}`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (error) {
-      console.error('Download error:', error);
-    }
+    // Direct anchor to the server's attachment URL (server sends
+    // Content-Disposition: attachment). More reliable than a blob+download on
+    // iOS Safari, which ignores the download attribute for blob: URLs and opens
+    // them inline instead.
+    const a = document.createElement('a');
+    a.href = `${API_URL}${translationState.documentUrl}`;
+    a.download = '';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   const handleReset = () => {
