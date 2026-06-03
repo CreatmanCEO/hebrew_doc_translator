@@ -13,6 +13,11 @@ const { assertDocxSafe } = require('./services/zipGuard');
 const MAX_PAGES = Number(process.env.MAX_PAGES) || 50;
 const MAX_DOCX_UNCOMPRESSED = Number(process.env.MAX_DOCX_UNCOMPRESSED_MB || 100) * 1024 * 1024;
 
+// Unicode font for PDF output. PDFKit's built-in Helvetica is WinAnsi-only and
+// renders Cyrillic (and other non-Latin) as garbage; DejaVu Sans covers
+// Latin + Cyrillic so he->ru/en output is readable.
+const PDF_FONT = path.join(__dirname, 'assets', 'fonts', 'DejaVuSans.ttf');
+
 class DocumentProcessor {
   constructor() {
     this.validationService = new ValidationService();
@@ -84,6 +89,11 @@ class DocumentProcessor {
       size: 'A4',
       margin: 50
     });
+
+    // Use a Unicode font so Cyrillic/other non-Latin output isn't garbled.
+    if (fsSync.existsSync(PDF_FONT)) {
+      doc.font(PDF_FONT);
+    }
 
     const writeStream = fsSync.createWriteStream(outputPath);
     doc.pipe(writeStream);
