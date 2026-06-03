@@ -11,7 +11,7 @@ const { toBlocks } = require('../services/textDocument');
 const { buildSegments } = require('../services/translationDocument');
 const { buildTranslationDocument } = require('../services/pipeline');
 const LiteLLMProvider = require('../adapters/ai/LiteLLMProvider');
-const { saveResult, getResult } = require('../services/resultStore');
+const { saveResult, getResult, recentUsage } = require('../services/resultStore');
 const { validateMagicBytes } = require('../middleware/fileValidation');
 const { emitToSession } = require('../socket/rooms');
 
@@ -306,6 +306,41 @@ router.get('/result/:token', (req, res) => {
   // Снимаем админ-only поле usage перед отдачей наружу.
   const { usage, ...pub } = doc;
   res.json(pub);
+});
+
+// Админский эндпоинт расхода токенов/стоимости, сгруппированный по owner.
+// Гейт строгий: нет ADMIN_KEY в окружении ИЛИ заголовок не совпадает → 401.
+// Это скрывает данные о стоимости от публики и future-proof'ит per-user панель.
+router.get('/admin/usage', (req, res) => {
+  const adminKey = process.env.ADMIN_KEY;
+  if (!adminKey || req.get('x-admin-key') !== adminKey) {
+    return res.status(401).json({ success: false, message: 'unauthorized' });
+  }
+
+  const rows = recentUsage(100);
+  const byOwner = {};
+  for (const { usage } of rows) {
+    const owner = usage.owner || 'anon';
+    const o = byOwner[owner] || (byOwner[owner] = { jobs: 0, calls: 0, in: 0, out: 0, total: 0, costUsd: 0 });
+    o.jobs += 1;
+    o.calls += usage.totals?.calls || 0;
+    o.in += usage.totals?.in || 0;
+    o.out += usage.totals?.out || 0;
+    o.total += usage.totals?.total || 0;
+    o.costUsd += usage.totals?.costUsd || 0;
+  }
+
+  res.set('Cache-Control', 'private, no-store');
+  res.json({
+    byOwner,
+    jobs: rows.map(r => ({
+      token: r.token,
+      owner: r.usage.owner,
+      jobId: r.usage.jobId,
+      totals: r.usage.totals,
+      byModel: r.usage.byModel
+    }))
+  });
 });
 
 module.exports = router;
