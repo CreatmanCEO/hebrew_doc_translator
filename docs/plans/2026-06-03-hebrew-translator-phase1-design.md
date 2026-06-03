@@ -52,6 +52,7 @@ Pipeline becomes extract → structure → batch-translate(+align) → `Translat
 - `LiteLLMProvider` returns `usage {model, promptTokens, completionTokens, totalTokens, costUsd}` from the response (`usage` + `x-litellm-response-cost` / `_hidden_params`). Capture the **actual** model (fallback-aware), not the alias.
 - Worker aggregates across batch calls → `usage.byModel` + totals, stored with the result.
 - Admin: per-document panel (`model · in/out tokens · $cost`) + `GET /api/admin/usage` (recent jobs). Gated by `ADMIN_KEY` env (minimal gate until real auth exists). Usage stripped from the public result payload.
+- **Forward-compatible for multi-user:** each usage record carries an `owner` field (`anon`/null now; a real userId once auth exists) plus `jobId` and timestamp, stored append-only so a **future admin panel can aggregate consumption per user / per period** when accounts arrive. The admin usage endpoint is built to group by `owner` (today: one bucket). No user system in Phase 1 — only the data shape + aggregation are future-proofed (YAGNI: no auth UI now).
 
 ## 4. iOS download fix
 Replace blob + `a.download` with a direct anchor to the attachment URL (server already sends `Content-Disposition: attachment`) — reliable on iOS Safari.
