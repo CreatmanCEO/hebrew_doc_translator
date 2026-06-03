@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Box, Grid, Paper, Typography } from '@mui/material';
 
 // Build a Set-membership key for a token span.
@@ -25,17 +25,6 @@ const HL_COLOR = '#fff59d'; // light yellow highlight
 function SideBySideViewer({ doc }) {
   // Set<string> of highlighted token keys (see tokenKey()).
   const [highlighted, setHighlighted] = useState(() => new Set());
-
-  // Index sentences by `${blockId}:${sentenceId}` for fast lookup.
-  const sentenceIndex = useMemo(() => {
-    const map = new Map();
-    (doc?.blocks || []).forEach((block) => {
-      (block.sentences || []).forEach((sentence) => {
-        map.set(`${block.id}:${sentence.id}`, { block, sentence });
-      });
-    });
-    return map;
-  }, [doc]);
 
   // Highlight every token of a sentence on both sides.
   const highlightWholeSentence = useCallback((blockId, sentence) => {
