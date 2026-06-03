@@ -50,4 +50,21 @@ describe('buildTranslationDocument', () => {
     expect(doc.blocks[0].sentences[0].target).toBe('W');   // translated
     expect(doc.blocks[0].sentences[4].target).toBe('w');   // capped -> source
   });
+  it('a failing chunk degrades to source passthrough, job still completes', async () => {
+    const seg = (id, toks) => ({ id, source: toks.join(' '), srcTokens: toks });
+    const blocks = [{ id:'b0', type:'paragraph', sentences:[ seg('b0s0',['a']), seg('b0s1',['b']) ] }];
+    // force tiny chunks so each segment is its own chunk; first chunk throws, second ok
+    let call = 0;
+    const flakyBatch = async (chunk) => {
+      call++;
+      if (call === 1) throw new Error('groq timeout');
+      return { items: chunk.map(s => ({ id:s.id, target:'OK', align:[] })), usage:null };
+    };
+    const doc = await buildTranslationDocument({ blocks, segments: blocks[0].sentences }, flakyBatch,
+      { sourceLang:'he', targetLang:'en', maxPerChunk: 1, concurrency: 1 });
+    const s = doc.blocks[0].sentences;
+    // first segment failed -> source passthrough; second -> translated
+    expect(s[0].target).toBe('a');
+    expect(s[1].target).toBe('OK');
+  });
 });

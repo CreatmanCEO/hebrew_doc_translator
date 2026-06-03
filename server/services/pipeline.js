@@ -64,19 +64,35 @@ function chunkSegments(segments, { maxPerChunk = 18, maxTokens = 1500 } = {}) {
 /**
  * Process chunks through `translateBatch` in waves of `concurrency`, returning
  * the flat array of per-chunk results in chunk order.
+ *
+ * Graceful degradation: a chunk that throws (Groq timeout / rate-limit /
+ * litellm failure) or returns falsy is treated as an empty result
+ * `{ items: [], usage: null }`. Its segments then fall through to source
+ * passthrough via the missing-item logic in `buildTranslationDocument`. A single
+ * failed chunk must NEVER fail the whole job.
+ *
+ * @param {Function} [onChunkError] optional (err, chunkIndex) callback
  */
-async function translateChunks(chunks, translateBatch, concurrency) {
+async function translateChunks(chunks, translateBatch, concurrency, onChunkError) {
   const width = Math.max(1, concurrency | 0);
   const results = [];
 
   for (let i = 0; i < chunks.length; i += width) {
     const wave = chunks.slice(i, i + width);
     const settled = await Promise.all(
-      wave.map((chunk) =>
-        translateBatch(
-          chunk.map((s) => ({ id: s.id, source: s.source, srcTokens: s.srcTokens })),
-        ),
-      ),
+      wave.map(async (chunk, j) => {
+        try {
+          const r = await translateBatch(
+            chunk.map((s) => ({ id: s.id, source: s.source, srcTokens: s.srcTokens })),
+          );
+          return r || { items: [], usage: null };
+        } catch (err) {
+          if (typeof onChunkError === 'function') {
+            try { onChunkError(err, i + j); } catch { /* ignore logging errors */ }
+          }
+          return { items: [], usage: null };
+        }
+      }),
     );
     for (const r of settled) results.push(r);
   }
@@ -101,11 +117,12 @@ async function buildTranslationDocument(structure, translateBatch, opts = {}) {
     sourceLang,
     targetLang,
     maxSegments = 1500,
-    concurrency = 3,
+    concurrency = 2,
     owner = 'anon',
     jobId = null,
     ts = null,
     onCap = null,
+    onChunkError = null,
   } = opts;
 
   // Segment cap: only the first `maxSegments` are translated; the rest pass
@@ -118,9 +135,13 @@ async function buildTranslationDocument(structure, translateBatch, opts = {}) {
     }
   }
 
-  // Chunk + translate with bounded concurrency.
-  const chunks = chunkSegments(toTranslate, opts);
-  const chunkResults = await translateChunks(chunks, translateBatch, concurrency);
+  // Chunk + translate with bounded concurrency. Chunk sizing is tunable so
+  // smaller, Groq-friendly batches can be requested by the caller.
+  const chunks = chunkSegments(toTranslate, {
+    maxPerChunk: opts.maxPerChunk || 8,
+    maxTokens: opts.maxTokens || 1200,
+  });
+  const chunkResults = await translateChunks(chunks, translateBatch, concurrency, onChunkError);
 
   // Aggregate usage and build id -> item map.
   const usage = newUsage();
