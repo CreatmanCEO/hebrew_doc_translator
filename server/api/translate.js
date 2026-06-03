@@ -11,7 +11,7 @@ const { toBlocks } = require('../services/textDocument');
 const { buildSegments } = require('../services/translationDocument');
 const { buildTranslationDocument } = require('../services/pipeline');
 const LiteLLMProvider = require('../adapters/ai/LiteLLMProvider');
-const { saveResult } = require('../services/resultStore');
+const { saveResult, getResult } = require('../services/resultStore');
 const { validateMagicBytes } = require('../middleware/fileValidation');
 const { emitToSession } = require('../socket/rooms');
 
@@ -249,6 +249,10 @@ router.post('/translate', (req, res) => {
 const DOWNLOAD_FILENAME_RE = /^translated_[0-9a-fA-F-]+\.(pdf|docx)$/;
 const DOWNLOAD_TTL_MS = Number(process.env.DOWNLOAD_TTL_MS) || 15 * 60 * 1000;
 
+// Допустимый формат токена результата: hex-символы и дефисы (UUID-подобный),
+// минимум 8 символов. Отсекает path-traversal и любой мусор до обращения в стор.
+const RESULT_TOKEN_RE = /^[0-9a-fA-F-]{8,}$/;
+
 // Маршрут для скачивания переведенного документа
 router.get('/download/:filename', async (req, res) => {
   try {
@@ -282,6 +286,26 @@ router.get('/download/:filename', async (req, res) => {
       message: 'Файл не найден'
     });
   }
+});
+
+// Маршрут просмотра результата перевода по токену.
+// Возвращает TranslationDocument без админского поля usage; payload приватный.
+router.get('/result/:token', (req, res) => {
+  const token = req.params.token;
+  if (!RESULT_TOKEN_RE.test(token)) {
+    return res.status(400).json({ success: false, message: 'invalid token' });
+  }
+
+  const doc = getResult(token);
+  if (!doc) {
+    return res.status(404).json({ success: false, message: 'not found' });
+  }
+
+  // Документ содержит полный текст перевода — запрещаем кэширование.
+  res.set('Cache-Control', 'private, no-store');
+  // Снимаем админ-only поле usage перед отдачей наружу.
+  const { usage, ...pub } = doc;
+  res.json(pub);
 });
 
 module.exports = router;
