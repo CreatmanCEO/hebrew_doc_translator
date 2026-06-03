@@ -105,54 +105,56 @@ class Translator {
    * @returns {Promise<Array>}
    */
   async translateDocument(blocks, targetLang) {
-    const translatedBlocks = [];
+    // Translate blocks with bounded concurrency. Previously this ran strictly
+    // sequentially (one LLM round-trip per block), so multi-paragraph documents
+    // took minutes. We now process up to `docConcurrency` blocks in parallel
+    // while preserving original order.
+    const concurrency = this.options.docConcurrency || 5;
+    const out = new Array(blocks.length);
 
-    for (const block of blocks) {
-      if (block.type === 'table') {
-        // Handle table
-        const translatedRows = [];
-        for (const row of block.rows) {
-          const translatedRow = [];
-          for (const cell of row) {
-            if (cell.needsTranslation && cell.content) {
-              const result = await this.translateText(
-                cell.content,
-                cell.sourceLang || 'he',
-                targetLang
-              );
-              translatedRow.push({
-                ...cell,
-                content: result.text,
-                needsTranslation: false,
-                fromCache: result.fromCache
-              });
-            } else {
-              translatedRow.push(cell);
-            }
-          }
-          translatedRows.push(translatedRow);
-        }
-        translatedBlocks.push({ ...block, rows: translatedRows });
-      } else if (block.needsTranslation && block.content) {
-        // Handle text block
-        const result = await this.translateText(
-          block.content,
-          block.sourceLang || 'he',
-          targetLang
-        );
-        translatedBlocks.push({
-          ...block,
-          content: result.text,
-          needsTranslation: false,
-          fromCache: result.fromCache
-        });
-      } else {
-        // Pass through unchanged
-        translatedBlocks.push(block);
+    for (let i = 0; i < blocks.length; i += concurrency) {
+      const slice = blocks.slice(i, i + concurrency);
+      const results = await Promise.all(
+        slice.map(block => this.translateBlock(block, targetLang))
+      );
+      for (let j = 0; j < results.length; j++) {
+        out[i + j] = results[j];
       }
     }
 
-    return translatedBlocks;
+    return out;
+  }
+
+  /**
+   * Translate a single document block (text or table). Cells within a table are
+   * still translated sequentially (tables are small); blocks themselves are
+   * parallelised by translateDocument.
+   * @private
+   */
+  async translateBlock(block, targetLang) {
+    if (block.type === 'table') {
+      const translatedRows = [];
+      for (const row of block.rows) {
+        const translatedRow = [];
+        for (const cell of row) {
+          if (cell.needsTranslation && cell.content) {
+            const result = await this.translateText(cell.content, cell.sourceLang || 'he', targetLang);
+            translatedRow.push({ ...cell, content: result.text, needsTranslation: false, fromCache: result.fromCache });
+          } else {
+            translatedRow.push(cell);
+          }
+        }
+        translatedRows.push(translatedRow);
+      }
+      return { ...block, rows: translatedRows };
+    }
+
+    if (block.needsTranslation && block.content) {
+      const result = await this.translateText(block.content, block.sourceLang || 'he', targetLang);
+      return { ...block, content: result.text, needsTranslation: false, fromCache: result.fromCache };
+    }
+
+    return block;
   }
 
   /**
