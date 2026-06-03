@@ -6,6 +6,10 @@ import DocumentUpload from './components/DocumentUpload';
 import TranslationProgress from './components/TranslationProgress';
 import DocumentPreview from './components/DocumentPreview';
 
+// API origin: пусто => тот же origin, что и страница (прод, через Traefik).
+// В dev задаётся через client/.env.development (REACT_APP_API_URL=http://localhost:3001).
+const API_URL = process.env.REACT_APP_API_URL || '';
+
 function App() {
   const [translationState, setTranslationState] = React.useState({
     status: 'idle',
@@ -27,7 +31,7 @@ function App() {
 
   // Инициализация WebSocket соединения
   useEffect(() => {
-    const newSocket = io('http://localhost:3001', { query: { sessionId } });
+    const newSocket = io(API_URL || window.location.origin, { query: { sessionId } });
     setSocket(newSocket);
 
     return () => newSocket.close();
@@ -85,7 +89,7 @@ function App() {
       formData.append('sourceLang', 'he'); // Исходный язык всегда иврит
       formData.append('sessionId', sessionId);
 
-      const response = await fetch('http://localhost:3001/api/translate', {
+      const response = await fetch(`${API_URL}/api/translate`, {
         method: 'POST',
         body: formData,
       });
