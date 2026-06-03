@@ -107,6 +107,124 @@ If text contains mixed languages, translate only the ${langNames[from]} parts.`;
   }
 
   /**
+   * Build the system prompt for batch translation + word alignment.
+   * @private
+   */
+  buildBatchSystemPrompt(from, to) {
+    const langNames = { he: 'Hebrew', en: 'English', ru: 'Russian', ar: 'Arabic' };
+    const fromName = langNames[from] || from;
+    const toName = langNames[to] || to;
+
+    return `You are a professional translator ${fromName}->${toName}. ` +
+      `You are given an array of segments, each with an id and its source word tokens (0-indexed). ` +
+      `Return ONLY a JSON object {"items":[{"id":"...","target":"...","align":[{"src":[i],"tgt":[j]}]}]} ` +
+      `where target is the translation and align maps source token indices to target token indices ` +
+      `(target tokens = target split on spaces, 0-indexed). Preserve numbers/dates. Return one item per input id.`;
+  }
+
+  /**
+   * Strip ```json ... ``` (or plain ``` ... ```) fences from a string.
+   * @private
+   */
+  stripFences(content) {
+    let s = String(content).trim();
+    if (s.startsWith('```')) {
+      // remove opening fence (with optional language tag) and trailing fence
+      s = s.replace(/^```[a-zA-Z]*\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
+    }
+    return s;
+  }
+
+  /**
+   * Translate many segments in ONE call and return per-segment word alignments,
+   * plus token usage / cost / the actual model used (differs from alias on fallback).
+   *
+   * @param {Array<{id:string, source:string, srcTokens:string[]}>} segments
+   * @param {string} from
+   * @param {string} to
+   * @returns {Promise<{items:Array<{id:string,target:string,align:any[]}>, usage:object}>}
+   */
+  async translateBatchAligned(segments, from, to) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+    let response;
+    try {
+      const userPayload = (segments || []).map((s) => ({
+        id: s.id,
+        source: s.source,
+        srcTokens: s.srcTokens
+      }));
+
+      response = await fetch(`${this.baseURL}/chat/completions`, {
+        method: 'POST',
+        headers: this.buildHeaders(),
+        body: JSON.stringify({
+          model: this.model,
+          messages: [
+            { role: 'system', content: this.buildBatchSystemPrompt(from, to) },
+            { role: 'user', content: JSON.stringify(userPayload) }
+          ],
+          temperature: 0,
+          response_format: { type: 'json_object' }
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`LiteLLM API error: ${response.status} - ${error}`);
+      }
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        throw new Error('Batch translation request timed out');
+      }
+      throw error;
+    }
+
+    const data = await response.json();
+
+    const headerCost = response.headers?.get
+      ? response.headers.get('x-litellm-response-cost')
+      : null;
+
+    const usage = {
+      model: data.model || this.model,
+      promptTokens: data.usage?.prompt_tokens || 0,
+      completionTokens: data.usage?.completion_tokens || 0,
+      totalTokens: data.usage?.total_tokens || 0,
+      costUsd: Number(headerCost ?? data._hidden_params?.response_cost ?? 0) || 0
+    };
+
+    // Parse the model's JSON content defensively. A 200 with junk content must
+    // NOT crash the job — return empty items and let the caller proceed.
+    let items = [];
+    try {
+      const content = data.choices?.[0]?.message?.content;
+      if (typeof content === 'string') {
+        const parsed = JSON.parse(this.stripFences(content));
+        const arr = Array.isArray(parsed) ? parsed : parsed?.items;
+        if (Array.isArray(arr)) {
+          items = arr
+            .filter((it) => it && typeof it.id === 'string' && typeof it.target === 'string')
+            .map((it) => ({
+              id: it.id,
+              target: it.target,
+              align: Array.isArray(it.align) ? it.align : []
+            }));
+        }
+      }
+    } catch {
+      items = [];
+    }
+
+    return { items, usage };
+  }
+
+  /**
    * Detect language via the LiteLLM `detect` alias.
    * @param {string} text
    * @returns {Promise<string|null>}
