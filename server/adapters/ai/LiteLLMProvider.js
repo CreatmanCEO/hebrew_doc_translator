@@ -16,6 +16,8 @@ class LiteLLMProvider extends AIProvider {
     this.apiKey = options.apiKey || process.env.LITELLM_MASTER_KEY;
     this.model = options.model || 'translate';
     this.timeout = options.timeout || 30000;
+    // Batch translation needs a longer budget: Groq + litellm retries/fallback.
+    this.batchTimeout = options.batchTimeout || 120000;
   }
 
   /**
@@ -146,7 +148,9 @@ If text contains mixed languages, translate only the ${langNames[from]} parts.`;
    */
   async translateBatchAligned(segments, from, to) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    // Batch-specific (larger) timeout, not the 30s single-call timeout.
+    const timeout = this.batchTimeout || 120000;
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     let response;
     try {

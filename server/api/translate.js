@@ -76,7 +76,8 @@ documentQueue.process('translate', async (job) => {
     const doc = await buildTranslationDocument(
       { blocks: docBlocks, segments },
       (chunk) => aiProvider.translateBatchAligned(chunk, sourceLang || 'he', targetLang),
-      { sourceLang: sourceLang || 'he', targetLang, maxSegments: MAX_SEGMENTS, concurrency: 3,
+      { sourceLang: sourceLang || 'he', targetLang, maxSegments: MAX_SEGMENTS,
+        concurrency: 2, maxPerChunk: 8, maxTokens: 1200,
         owner: 'anon', jobId: String(job.id), ts: Date.now(),
         onCap: (info) => console.warn(`Segment cap hit: ${info.total} > ${info.cap} (job ${job.id})`) }
     );
