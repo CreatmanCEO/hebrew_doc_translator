@@ -6,6 +6,7 @@ import DocumentUpload from './components/DocumentUpload';
 import TranslationProgress from './components/TranslationProgress';
 import DocumentPreview from './components/DocumentPreview';
 import SideBySideViewer from './components/SideBySideViewer';
+import UsagePanel from './components/UsagePanel';
 
 // API origin: пусто => тот же origin, что и страница (прод, через Traefik).
 // В dev задаётся через client/.env.development (REACT_APP_API_URL=http://localhost:3001).
@@ -22,6 +23,7 @@ function App() {
 
   const [socket, setSocket] = React.useState(null);
   const [translationDoc, setTranslationDoc] = React.useState(null);
+  const [resultToken, setResultToken] = React.useState(null);
 
   // Стабильный идентификатор сессии: события прогресса приходят только в нашу комнату
   const sessionId = useMemo(
@@ -59,6 +61,8 @@ function App() {
         documentUrl: data.downloadUrl
       }));
 
+      setResultToken(data.resultToken || null);
+
       if (data.resultToken) {
         fetch(`${API_URL}/api/result/${data.resultToken}`)
           .then(r => r.ok ? r.json() : null)
@@ -85,6 +89,7 @@ function App() {
   const handleFileUpload = async (file, targetLang) => {
     try {
       setTranslationDoc(null);
+      setResultToken(null);
       setTranslationState({
         status: 'uploading',
         progress: 0,
@@ -149,6 +154,7 @@ function App() {
 
   const handleReset = () => {
     setTranslationDoc(null);
+    setResultToken(null);
     setTranslationState({
       status: 'idle',
       progress: 0,
@@ -190,6 +196,8 @@ function App() {
               onDownload={handleDownload}
             />
           )}
+
+          <UsagePanel resultToken={resultToken} />
 
           {translationDoc && <SideBySideViewer doc={translationDoc} />}
         </Box>
