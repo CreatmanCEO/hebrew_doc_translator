@@ -7,14 +7,20 @@ const crypto = require('crypto');
 const fs = require('fs').promises;
 const { v4: uuidv4 } = require('uuid');
 const DocumentProcessor = require('../documentProcessor');
-const { createTranslator } = require('../core/translation');
 const { toBlocks } = require('../services/textDocument');
+const { buildSegments } = require('../services/translationDocument');
+const { buildTranslationDocument } = require('../services/pipeline');
+const LiteLLMProvider = require('../adapters/ai/LiteLLMProvider');
+const { saveResult, getResult, recentUsage } = require('../services/resultStore');
 const { validateMagicBytes } = require('../middleware/fileValidation');
 const { emitToSession } = require('../socket/rooms');
 
 // Инициализируем сервисы
 const documentProcessor = new DocumentProcessor();
-const translator = createTranslator();
+const aiProvider = new LiteLLMProvider();
+
+// Жёсткий предел на число сегментов в одном документе (DoS-guard + бюджет).
+const MAX_SEGMENTS = Number(process.env.MAX_SEGMENTS) || 1500;
 
 // Создаем очередь для обработки документов
 const documentQueue = new Queue('document-processing', {
@@ -39,7 +45,8 @@ documentQueue.on('completed', (job, result) => {
   emitToSession(io, job.data.sessionId, 'translation:complete', {
     jobId: job.id,
     message: 'Перевод завершен',
-    downloadUrl: `/api/download/${result.filename}`
+    downloadUrl: `/api/download/${result.filename}`,
+    resultToken: result.resultToken
   });
 });
 
@@ -58,26 +65,39 @@ documentQueue.process('translate', async (job) => {
     
     // Обновляем прогресс: Начало обработки
     await job.progress(10);
-    
+
     // Обрабатываем документ (плоский текст)
     const processed = await documentProcessor.processDocument(filePath, targetLang);
-    await job.progress(50);
+    await job.progress(40);
 
-    // Разбиваем на блоки и переводим
-    const blocks = toBlocks(processed.content);
-    const translatedBlocks = await translator.translateDocument(blocks, targetLang);
+    // Разбиваем на блоки и сегменты, затем строим TranslationDocument
+    const rawBlocks = toBlocks(processed.content);
+    const { blocks: docBlocks, segments } = buildSegments(rawBlocks);
+    const doc = await buildTranslationDocument(
+      { blocks: docBlocks, segments },
+      (chunk) => aiProvider.translateBatchAligned(chunk, sourceLang || 'he', targetLang),
+      { sourceLang: sourceLang || 'he', targetLang, maxSegments: MAX_SEGMENTS, concurrency: 3,
+        owner: 'anon', jobId: String(job.id), ts: Date.now(),
+        onCap: (info) => console.warn(`Segment cap hit: ${info.total} > ${info.cap} (job ${job.id})`) }
+    );
     await job.progress(80);
 
-    // Генерируем переведенный файл с непредсказуемым именем-токеном
+    // result for the viewer
+    const resultToken = crypto.randomUUID();
+    saveResult(resultToken, doc);
+
+    // downloadable file: flatten translated sentences per block
+    const fileBlocks = doc.blocks.map(b => ({ type: 'text', content: b.sentences.map(s => s.target).join(' ') }));
     const outputPath = path.join(
       path.dirname(filePath),
       `translated_${crypto.randomUUID()}${path.extname(filePath)}`
     );
-    await documentProcessor.generateTranslatedDocument(translatedBlocks, outputPath);
+    await documentProcessor.generateTranslatedDocument(fileBlocks, outputPath);
     await job.progress(100);
-    
+
     return {
       filename: path.basename(outputPath),
+      resultToken,
       success: true
     };
   } catch (error) {
@@ -229,6 +249,10 @@ router.post('/translate', (req, res) => {
 const DOWNLOAD_FILENAME_RE = /^translated_[0-9a-fA-F-]+\.(pdf|docx)$/;
 const DOWNLOAD_TTL_MS = Number(process.env.DOWNLOAD_TTL_MS) || 15 * 60 * 1000;
 
+// Допустимый формат токена результата: hex-символы и дефисы (UUID-подобный),
+// минимум 8 символов. Отсекает path-traversal и любой мусор до обращения в стор.
+const RESULT_TOKEN_RE = /^[0-9a-fA-F-]{8,}$/;
+
 // Маршрут для скачивания переведенного документа
 router.get('/download/:filename', async (req, res) => {
   try {
@@ -262,6 +286,61 @@ router.get('/download/:filename', async (req, res) => {
       message: 'Файл не найден'
     });
   }
+});
+
+// Маршрут просмотра результата перевода по токену.
+// Возвращает TranslationDocument без админского поля usage; payload приватный.
+router.get('/result/:token', (req, res) => {
+  const token = req.params.token;
+  if (!RESULT_TOKEN_RE.test(token)) {
+    return res.status(400).json({ success: false, message: 'invalid token' });
+  }
+
+  const doc = getResult(token);
+  if (!doc) {
+    return res.status(404).json({ success: false, message: 'not found' });
+  }
+
+  // Документ содержит полный текст перевода — запрещаем кэширование.
+  res.set('Cache-Control', 'private, no-store');
+  // Снимаем админ-only поле usage перед отдачей наружу.
+  const { usage, ...pub } = doc;
+  res.json(pub);
+});
+
+// Админский эндпоинт расхода токенов/стоимости, сгруппированный по owner.
+// Гейт строгий: нет ADMIN_KEY в окружении ИЛИ заголовок не совпадает → 401.
+// Это скрывает данные о стоимости от публики и future-proof'ит per-user панель.
+router.get('/admin/usage', (req, res) => {
+  const adminKey = process.env.ADMIN_KEY;
+  if (!adminKey || req.get('x-admin-key') !== adminKey) {
+    return res.status(401).json({ success: false, message: 'unauthorized' });
+  }
+
+  const rows = recentUsage(100);
+  const byOwner = {};
+  for (const { usage } of rows) {
+    const owner = usage.owner || 'anon';
+    const o = byOwner[owner] || (byOwner[owner] = { jobs: 0, calls: 0, in: 0, out: 0, total: 0, costUsd: 0 });
+    o.jobs += 1;
+    o.calls += usage.totals?.calls || 0;
+    o.in += usage.totals?.in || 0;
+    o.out += usage.totals?.out || 0;
+    o.total += usage.totals?.total || 0;
+    o.costUsd += usage.totals?.costUsd || 0;
+  }
+
+  res.set('Cache-Control', 'private, no-store');
+  res.json({
+    byOwner,
+    jobs: rows.map(r => ({
+      token: r.token,
+      owner: r.usage.owner,
+      jobId: r.usage.jobId,
+      totals: r.usage.totals,
+      byModel: r.usage.byModel
+    }))
+  });
 });
 
 module.exports = router;

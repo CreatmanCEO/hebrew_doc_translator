@@ -5,6 +5,8 @@ import io from 'socket.io-client';
 import DocumentUpload from './components/DocumentUpload';
 import TranslationProgress from './components/TranslationProgress';
 import DocumentPreview from './components/DocumentPreview';
+import SideBySideViewer from './components/SideBySideViewer';
+import UsagePanel from './components/UsagePanel';
 
 // API origin: пусто => тот же origin, что и страница (прод, через Traefik).
 // В dev задаётся через client/.env.development (REACT_APP_API_URL=http://localhost:3001).
@@ -20,6 +22,8 @@ function App() {
   });
 
   const [socket, setSocket] = React.useState(null);
+  const [translationDoc, setTranslationDoc] = React.useState(null);
+  const [resultToken, setResultToken] = React.useState(null);
 
   // Стабильный идентификатор сессии: события прогресса приходят только в нашу комнату
   const sessionId = useMemo(
@@ -56,6 +60,15 @@ function App() {
         progress: 100,
         documentUrl: data.downloadUrl
       }));
+
+      setResultToken(data.resultToken || null);
+
+      if (data.resultToken) {
+        fetch(`${API_URL}/api/result/${data.resultToken}`)
+          .then(r => r.ok ? r.json() : null)
+          .then(doc => { if (doc) setTranslationDoc(doc); })
+          .catch(() => {});
+      }
     });
 
     socket.on('translation:error', (data) => {
@@ -75,6 +88,8 @@ function App() {
 
   const handleFileUpload = async (file, targetLang) => {
     try {
+      setTranslationDoc(null);
+      setResultToken(null);
       setTranslationState({
         status: 'uploading',
         progress: 0,
@@ -122,26 +137,24 @@ function App() {
     }
   };
 
-  const handleDownload = async () => {
+  const handleDownload = () => {
     if (!translationState.documentUrl) return;
-    
-    try {
-      const response = await fetch(translationState.documentUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `translated_${translationState.originalName}`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (error) {
-      console.error('Download error:', error);
-    }
+    // Direct anchor to the server's attachment URL (server sends
+    // Content-Disposition: attachment). More reliable than a blob+download on
+    // iOS Safari, which ignores the download attribute for blob: URLs and opens
+    // them inline instead.
+    const a = document.createElement('a');
+    a.href = `${API_URL}${translationState.documentUrl}`;
+    a.download = '';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   const handleReset = () => {
+    setTranslationDoc(null);
+    setResultToken(null);
     setTranslationState({
       status: 'idle',
       progress: 0,
@@ -183,6 +196,10 @@ function App() {
               onDownload={handleDownload}
             />
           )}
+
+          <UsagePanel resultToken={resultToken} />
+
+          {translationDoc && <SideBySideViewer doc={translationDoc} />}
         </Box>
       </Container>
     </SnackbarProvider>
