@@ -14,6 +14,8 @@ const LiteLLMProvider = require('../adapters/ai/LiteLLMProvider');
 const { saveResult, getResult, recentUsage } = require('../services/resultStore');
 const { validateMagicBytes } = require('../middleware/fileValidation');
 const { emitToSession } = require('../socket/rooms');
+const { extractParagraphs, writeBack } = require('../services/docxInplace');
+const { assertDocxSafe } = require('../services/zipGuard');
 
 // Инициализируем сервисы
 const documentProcessor = new DocumentProcessor();
@@ -21,6 +23,9 @@ const aiProvider = new LiteLLMProvider();
 
 // Жёсткий предел на число сегментов в одном документе (DoS-guard + бюджет).
 const MAX_SEGMENTS = Number(process.env.MAX_SEGMENTS) || 1500;
+
+// Предел распакованного размера DOCX (zip-bomb guard) для воркера.
+const MAX_DOCX_UNCOMPRESSED = Number(process.env.MAX_DOCX_UNCOMPRESSED_MB || 100) * 1024 * 1024;
 
 // Создаем очередь для обработки документов
 const documentQueue = new Queue('document-processing', {
@@ -62,38 +67,78 @@ documentQueue.on('failed', (job, error) => {
 documentQueue.process('translate', async (job) => {
   try {
     const { filePath, sourceLang, targetLang, originalName } = job.data;
-    
+
     // Обновляем прогресс: Начало обработки
     await job.progress(10);
 
-    // Обрабатываем документ (плоский текст)
-    const processed = await documentProcessor.processDocument(filePath, targetLang);
-    await job.progress(40);
+    const ext = path.extname(filePath).slice(1).toLowerCase();
+    let doc = null, outputPath = null, usedInplace = false;
 
-    // Разбиваем на блоки и сегменты, затем строим TranslationDocument
-    const rawBlocks = toBlocks(processed.content);
-    const { blocks: docBlocks, segments } = buildSegments(rawBlocks);
-    const doc = await buildTranslationDocument(
-      { blocks: docBlocks, segments },
-      (chunk) => aiProvider.translateBatchAligned(chunk, sourceLang || 'he', targetLang),
-      { sourceLang: sourceLang || 'he', targetLang, maxSegments: MAX_SEGMENTS,
-        concurrency: 2, maxPerChunk: 8, maxTokens: 1200,
-        owner: 'anon', jobId: String(job.id), ts: Date.now(),
-        onCap: (info) => console.warn(`Segment cap hit: ${info.total} > ${info.cap} (job ${job.id})`) }
-    );
-    await job.progress(80);
+    // DOCX: переводим документ "на месте", сохраняя исходную вёрстку.
+    // Любая ошибка → откатываемся на плоский путь ниже, чтобы скачивание не ломалось.
+    if (ext === 'docx') {
+      try {
+        await assertDocxSafe(filePath, MAX_DOCX_UNCOMPRESSED);
+        const buffer = await fs.readFile(filePath);
+        const { paragraphs, zip, documentXml } = await extractParagraphs(buffer);
+        const blocks = paragraphs.map(p => ({ type: 'paragraph', content: p.content }));
+        const { blocks: docBlocks, segments } = buildSegments(blocks);
+        if (docBlocks.length !== paragraphs.length) {
+          throw new Error(`paragraph/segment count mismatch ${docBlocks.length} != ${paragraphs.length}`);
+        }
+        await job.progress(40);
+        doc = await buildTranslationDocument(
+          { blocks: docBlocks, segments },
+          (chunk) => aiProvider.translateBatchAligned(chunk, sourceLang || 'he', targetLang),
+          { sourceLang: sourceLang || 'he', targetLang, maxSegments: MAX_SEGMENTS,
+            concurrency: 2, maxPerChunk: 8, maxTokens: 1200,
+            owner: 'anon', jobId: String(job.id), ts: Date.now(),
+            onCap: (info) => console.warn(`Segment cap hit: ${info.total} > ${info.cap} (job ${job.id})`) }
+        );
+        await job.progress(80);
+        const mapping = {};
+        docBlocks.forEach((b, i) => { mapping[paragraphs[i].pIndex] = b.sentences.map(s => s.target).join(' '); });
+        const outBuf = await writeBack(zip, documentXml, mapping);
+        outputPath = path.join(path.dirname(filePath), `translated_${crypto.randomUUID()}.docx`);
+        await fs.writeFile(outputPath, outBuf);
+        usedInplace = true;
+      } catch (e) {
+        console.warn('DOCX in-place failed, falling back to flat:', e.message);
+      }
+    }
+
+    // Плоский путь (PDF всегда, DOCX как fallback): извлекаем текст и собираем
+    // переведённый документ заново, теряя вёрстку, но гарантируя результат.
+    if (!usedInplace) {
+      // Обрабатываем документ (плоский текст)
+      const processed = await documentProcessor.processDocument(filePath, targetLang);
+      await job.progress(40);
+
+      // Разбиваем на блоки и сегменты, затем строим TranslationDocument
+      const rawBlocks = toBlocks(processed.content);
+      const { blocks: docBlocks, segments } = buildSegments(rawBlocks);
+      doc = await buildTranslationDocument(
+        { blocks: docBlocks, segments },
+        (chunk) => aiProvider.translateBatchAligned(chunk, sourceLang || 'he', targetLang),
+        { sourceLang: sourceLang || 'he', targetLang, maxSegments: MAX_SEGMENTS,
+          concurrency: 2, maxPerChunk: 8, maxTokens: 1200,
+          owner: 'anon', jobId: String(job.id), ts: Date.now(),
+          onCap: (info) => console.warn(`Segment cap hit: ${info.total} > ${info.cap} (job ${job.id})`) }
+      );
+      await job.progress(80);
+
+      // downloadable file: flatten translated sentences per block
+      const fileBlocks = doc.blocks.map(b => ({ type: 'text', content: b.sentences.map(s => s.target).join(' ') }));
+      outputPath = path.join(
+        path.dirname(filePath),
+        `translated_${crypto.randomUUID()}${path.extname(filePath)}`
+      );
+      await documentProcessor.generateTranslatedDocument(fileBlocks, outputPath);
+    }
 
     // result for the viewer
     const resultToken = crypto.randomUUID();
     saveResult(resultToken, doc);
-
-    // downloadable file: flatten translated sentences per block
-    const fileBlocks = doc.blocks.map(b => ({ type: 'text', content: b.sentences.map(s => s.target).join(' ') }));
-    const outputPath = path.join(
-      path.dirname(filePath),
-      `translated_${crypto.randomUUID()}${path.extname(filePath)}`
-    );
-    await documentProcessor.generateTranslatedDocument(fileBlocks, outputPath);
     await job.progress(100);
 
     return {
