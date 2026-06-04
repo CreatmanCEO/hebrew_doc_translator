@@ -1,6 +1,10 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { PDFExtract } = require('pdf.js-extract');
+const { PDFDocument, rgb } = require('pdf-lib');
+const fontkit = require('@pdf-lib/fontkit');
 
 /**
  * Union the bounding boxes of a list of items/boxes.
@@ -174,4 +178,54 @@ function extractBlocks(buffer) {
   });
 }
 
-module.exports = { groupBlocks, extractBlocks, unionBbox, toPdfRect, wrapAndFit };
+/**
+ * Render translations onto a copy of the original PDF. Loading the original
+ * buffer preserves its images/vectors; for each block we white-out the source
+ * text region then draw the wrapped + auto-fitted translation in a Unicode font
+ * (DejaVuSans covers Latin + Cyrillic).
+ *
+ * @param {Buffer} buffer - original PDF bytes
+ * @param {Array<{page:number, pageHeight?:number, bbox:{x,y,w,h}, target:string}>} blocks
+ * @returns {Promise<Buffer>} overlaid PDF bytes
+ */
+async function renderOverlay(buffer, blocks) {
+  const pdf = await PDFDocument.load(buffer);
+  pdf.registerFontkit(fontkit);
+
+  const fontBytes = fs.readFileSync(
+    path.join(__dirname, '..', 'assets', 'fonts', 'DejaVuSans.ttf')
+  );
+  const font = await pdf.embedFont(fontBytes, { subset: true });
+
+  const pages = pdf.getPages();
+
+  for (const block of blocks || []) {
+    if (typeof block.target !== 'string' || !block.target.trim()) continue;
+    const page = pages[block.page];
+    if (!page) continue;
+
+    const ph = block.pageHeight || page.getHeight();
+    const r = toPdfRect(block.bbox, ph);
+
+    // White-out the original text region.
+    page.drawRectangle({ x: r.x, y: r.y, width: r.w, height: r.h, color: rgb(1, 1, 1) });
+
+    const { size, lines } = wrapAndFit(
+      block.target,
+      r.w,
+      r.h,
+      (s, sz) => font.widthOfTextAtSize(s, sz),
+      { max: Math.max(6, Math.min(14, r.h)), min: 6, lineGap: 1.15 }
+    );
+
+    let ty = r.y + r.h - size;
+    for (const line of lines) {
+      page.drawText(line, { x: r.x, y: ty, size, font, color: rgb(0, 0, 0) });
+      ty -= size * 1.15;
+    }
+  }
+
+  return Buffer.from(await pdf.save());
+}
+
+module.exports = { groupBlocks, extractBlocks, unionBbox, toPdfRect, wrapAndFit, renderOverlay };
