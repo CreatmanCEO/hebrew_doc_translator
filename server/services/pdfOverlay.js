@@ -85,6 +85,64 @@ function groupBlocks(items, { yTol = 3, blockGapFactor = 1.6 } = {}) {
 }
 
 /**
+ * Convert a top-left-origin bbox (pdf.js-extract) to a bottom-left-origin
+ * rectangle (pdf-lib). y grows downward in source, upward in pdf-lib.
+ *
+ * @param {{x:number,y:number,w:number,h:number}} bbox
+ * @param {number} pageHeight
+ * @returns {{x:number,y:number,w:number,h:number}}
+ */
+function toPdfRect(bbox, pageHeight) {
+  return { x: bbox.x, y: pageHeight - bbox.y - bbox.h, w: bbox.w, h: bbox.h };
+}
+
+/**
+ * Greedily word-wrap `text` into lines that each fit `boxW` at `size`.
+ * A single word wider than boxW still goes on its own line (overflow allowed).
+ */
+function wrapLines(text, boxW, size, measure) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = '';
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word;
+    if (line && measure(candidate, size) > boxW) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+/**
+ * Pure word-wrap + auto-fit: pick the largest font size in [min, max] (step 1)
+ * at which the wrapped text fits inside boxW x boxH. If none fit, return the
+ * wrap computed at `min` (overflow allowed, never throws, never clips).
+ *
+ * @param {string} text
+ * @param {number} boxW
+ * @param {number} boxH
+ * @param {(str:string, size:number)=>number} measure - width in pt
+ * @param {{max?:number, min?:number, lineGap?:number}} [opts]
+ * @returns {{size:number, lines:string[]}}
+ */
+function wrapAndFit(text, boxW, boxH, measure, { max = 14, min = 6, lineGap = 1.15 } = {}) {
+  if (!text || text.trim() === '') return { size: max, lines: [] };
+
+  let fallback = null;
+  for (let size = max; size >= min; size -= 1) {
+    const lines = wrapLines(text, boxW, size, measure);
+    if (size === min) fallback = { size, lines };
+    if (lines.length * size * lineGap <= boxH) return { size, lines };
+  }
+  // No size fit: return the wrap at min (overflow allowed).
+  return fallback || { size: min, lines: wrapLines(text, boxW, min, measure) };
+}
+
+/**
  * Extract blocks (with positions) from a PDF buffer using its text layer.
  * @param {Buffer} buffer
  * @returns {Promise<{blocks:Array, noTextLayer:boolean}>}
@@ -116,4 +174,4 @@ function extractBlocks(buffer) {
   });
 }
 
-module.exports = { groupBlocks, extractBlocks, unionBbox };
+module.exports = { groupBlocks, extractBlocks, unionBbox, toPdfRect, wrapAndFit };
