@@ -6,6 +6,7 @@ import DocumentUpload from './components/DocumentUpload';
 import TranslationProgress from './components/TranslationProgress';
 import DocumentPreview from './components/DocumentPreview';
 import SideBySideViewer from './components/SideBySideViewer';
+import StructuredViewer from './components/StructuredViewer';
 import UsagePanel from './components/UsagePanel';
 import LanguageSwitcher from './components/LanguageSwitcher';
 import { useT } from './i18n';
@@ -217,7 +218,9 @@ function App() {
 
             <UsagePanel resultToken={resultToken} />
 
-            {translationDoc && <SideBySideViewer doc={translationDoc} />}
+            {translationDoc && (translationDoc.schemaVersion === 2
+              ? <StructuredViewer doc={translationDoc} />
+              : <SideBySideViewer doc={translationDoc} />)}
           </Stack>
         </Container>
       </Box>
