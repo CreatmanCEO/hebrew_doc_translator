@@ -229,6 +229,71 @@ If text contains mixed languages, translate only the ${langNames[from]} parts.`;
   }
 
   /**
+   * Generic structured-output call: send a system + user message and get back
+   * the model's raw JSON string (response_format json_object) plus token usage.
+   * Used by the document-restructuring step. Defaults to the `translate` alias.
+   *
+   * @param {string} system - system prompt
+   * @param {string} user - user content
+   * @param {{model?: string}} [opts]
+   * @returns {Promise<{content: string, usage: object}>}
+   */
+  async chatJSON(system, user, { model } = {}) {
+    if (!this.apiKey) throw new Error('LiteLLM API key not configured');
+
+    const controller = new AbortController();
+    const timeout = this.batchTimeout || 120000;
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      const response = await fetch(`${this.baseURL}/chat/completions`, {
+        method: 'POST',
+        headers: this.buildHeaders(),
+        body: JSON.stringify({
+          model: model || this.model,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user }
+          ],
+          temperature: 0,
+          response_format: { type: 'json_object' }
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`LiteLLM API error: ${response.status} - ${errText}`);
+      }
+
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content ?? '';
+
+      const headerCost = response.headers?.get
+        ? response.headers.get('x-litellm-response-cost')
+        : null;
+
+      const usage = {
+        model: data.model || model || this.model,
+        promptTokens: data.usage?.prompt_tokens || 0,
+        completionTokens: data.usage?.completion_tokens || 0,
+        totalTokens: data.usage?.total_tokens || 0,
+        costUsd: Number(headerCost ?? data._hidden_params?.response_cost ?? 0) || 0
+      };
+
+      return { content, usage };
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        throw new Error('chatJSON request timed out');
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Detect language via the LiteLLM `detect` alias.
    * @param {string} text
    * @returns {Promise<string|null>}
