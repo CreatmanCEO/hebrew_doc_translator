@@ -1,10 +1,19 @@
 import React, { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Box, Paper, Typography, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import {
+  Box,
+  Paper,
+  Typography,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
+  CircularProgress,
+} from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import CircularProgress from '@mui/material/CircularProgress';
+import { useT } from '../i18n';
 
 function DocumentUpload({ onFileUpload, disabled }) {
+  const t = useT();
   const [targetLang, setTargetLang] = React.useState('ru');
 
   const onDrop = useCallback((acceptedFiles) => {
@@ -26,29 +35,50 @@ function DocumentUpload({ onFileUpload, disabled }) {
 
   return (
     <Box>
-      <FormControl fullWidth sx={{ mb: 2 }}>
-        <InputLabel>Язык перевода</InputLabel>
-        <Select
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        spacing={1.5}
+        alignItems={{ xs: 'flex-start', sm: 'center' }}
+        sx={{ mb: 2 }}
+      >
+        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+          {t('targetLang')}
+        </Typography>
+        <ToggleButtonGroup
+          size="small"
+          exclusive
+          color="primary"
           value={targetLang}
-          onChange={(e) => setTargetLang(e.target.value)}
+          onChange={(_, v) => v && setTargetLang(v)}
           disabled={disabled}
-          label="Язык перевода"
+          aria-label={t('targetLang')}
         >
-          <MenuItem value="ru">Русский</MenuItem>
-          <MenuItem value="en">English</MenuItem>
-        </Select>
-      </FormControl>
+          <ToggleButton value="en" aria-label={t('langEnglish')}>
+            {t('langEnglish')}
+          </ToggleButton>
+          <ToggleButton value="ru" aria-label={t('langRussian')}>
+            {t('langRussian')}
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Stack>
 
       <Paper
         {...getRootProps()}
+        elevation={0}
         sx={{
-          p: 3,
+          py: 6,
+          px: 3,
           textAlign: 'center',
           cursor: disabled ? 'default' : 'pointer',
           bgcolor: isDragActive ? 'action.hover' : 'background.paper',
           border: '2px dashed',
-          borderColor: disabled ? 'action.disabled' : isDragActive ? 'primary.main' : 'divider',
+          borderColor: disabled
+            ? 'action.disabled'
+            : isDragActive
+            ? 'primary.main'
+            : 'divider',
           opacity: disabled ? 0.7 : 1,
+          transition: 'background-color .15s ease, border-color .15s ease',
           '&:hover': {
             bgcolor: disabled ? 'background.paper' : 'action.hover',
             borderColor: disabled ? 'action.disabled' : 'primary.main'
@@ -58,22 +88,24 @@ function DocumentUpload({ onFileUpload, disabled }) {
         <input {...getInputProps()} disabled={disabled} />
         <Box sx={{ mb: 2 }}>
           {disabled ? (
-            <CircularProgress size={48} />
+            <CircularProgress size={44} />
           ) : (
-            <CloudUploadIcon sx={{ fontSize: 48, color: 'primary.main' }} />
+            <CloudUploadIcon sx={{ fontSize: 44, color: 'primary.main' }} />
           )}
         </Box>
-        <Typography variant="h6" gutterBottom>
-          {disabled ? 'Обработка файла...' :
-           isDragActive ? 'Отпустите файл здесь' : 
-           'Перетащите файл сюда или нажмите для выбора'}
+        <Typography variant="subtitle1" sx={{ fontWeight: 600 }} gutterBottom>
+          {disabled
+            ? t('processingFile')
+            : isDragActive
+            ? t('dropActive')
+            : t('uploadHint')}
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Поддерживаются файлы PDF и DOCX до 50MB
+          {t('sizeLimit')}
         </Typography>
       </Paper>
     </Box>
   );
 }
 
-export default DocumentUpload; 
+export default DocumentUpload;

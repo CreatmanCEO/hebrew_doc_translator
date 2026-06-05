@@ -1,15 +1,17 @@
 import React, { useEffect } from 'react';
-import { Box, LinearProgress, Typography, Button } from '@mui/material';
+import { Box, Paper, LinearProgress, Typography, Button, Stack } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import { useT } from '../i18n';
 
 function TranslationProgress({ status, progress, error, onReset }) {
+  const t = useT();
   const { enqueueSnackbar } = useSnackbar();
 
   useEffect(() => {
     if (error) {
-      enqueueSnackbar(error, { 
+      enqueueSnackbar(error, {
         variant: 'error',
         autoHideDuration: 5000,
         action: onReset ? (
@@ -25,11 +27,16 @@ function TranslationProgress({ status, progress, error, onReset }) {
 
   if (status === 'error') {
     return (
-      <Box sx={{ width: '100%', mt: 4, textAlign: 'center' }}>
+      <Paper elevation={0} sx={{ p: 4, textAlign: 'center', border: '1px solid', borderColor: 'divider' }}>
         <ErrorOutlineIcon color="error" sx={{ fontSize: 40, mb: 1 }} />
         <Typography color="error" gutterBottom>
-          {error || 'Произошла ошибка при обработке файла'}
+          {t('statusError')}
         </Typography>
+        {error && (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {error}
+          </Typography>
+        )}
         {onReset && (
           <Button
             variant="contained"
@@ -37,38 +44,47 @@ function TranslationProgress({ status, progress, error, onReset }) {
             onClick={onReset}
             startIcon={<RefreshIcon />}
           >
-            Попробовать снова
+            {t('retry')}
           </Button>
         )}
-      </Box>
+      </Paper>
     );
   }
 
+  const label =
+    status === 'uploading'
+      ? t('statusUploading')
+      : status === 'processing'
+      ? t('statusProcessing')
+      : status === 'completed'
+      ? t('statusDone')
+      : t('statusProcessing');
+
   return (
-    <Box sx={{ width: '100%', mt: 4 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-        <Typography variant="body1" sx={{ flexGrow: 1 }}>
-          {status === 'uploading' ? 'Загрузка файла...' :
-           status === 'processing' ? 'Перевод документа...' :
-           status === 'completed' ? 'Перевод завершен' :
-           'Подготовка к переводу...'}
+    <Paper elevation={0} sx={{ p: 3, border: '1px solid', borderColor: 'divider' }}>
+      <Stack direction="row" alignItems="center" sx={{ mb: 1 }}>
+        <Typography variant="body1" sx={{ flexGrow: 1, fontWeight: 500 }}>
+          {label}
         </Typography>
         <Typography variant="body2" color="text.secondary">
           {progress}%
         </Typography>
-      </Box>
-      <LinearProgress 
-        variant="determinate" 
-        value={progress} 
+      </Stack>
+      <LinearProgress
+        variant="determinate"
+        value={progress}
         color={status === 'completed' ? 'success' : 'primary'}
+        sx={{ height: 6, borderRadius: 3 }}
       />
       {status === 'completed' && (
-        <Typography variant="body2" color="success.main" sx={{ mt: 1 }}>
-          Документ успешно переведен
-        </Typography>
+        <Box sx={{ mt: 1 }}>
+          <Typography variant="body2" color="success.main">
+            {t('statusDone')}
+          </Typography>
+        </Box>
       )}
-    </Box>
+    </Paper>
   );
 }
 
-export default TranslationProgress; 
+export default TranslationProgress;
