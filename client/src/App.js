@@ -37,6 +37,10 @@ function App() {
     []
   );
 
+  // Локализованный заголовок вкладки (меняется при смене языка интерфейса)
+  const pageTitle = t('appTitle');
+  useEffect(() => { document.title = pageTitle; }, [pageTitle]);
+
   // Инициализация WebSocket соединения
   useEffect(() => {
     const newSocket = io(API_URL || window.location.origin, { query: { sessionId } });
