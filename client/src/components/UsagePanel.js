@@ -14,7 +14,15 @@ const API_URL = process.env.REACT_APP_API_URL || '';
  */
 function UsagePanel({ resultToken }) {
   const params = new URLSearchParams(window.location.search);
-  const adminKey = params.get('adminKey') || localStorage.getItem('adminKey');
+  // Ключ из URL имеет приоритет и СОХРАНЯЕТСЯ: один заход по
+  // ?adminKey=… делает браузер владельца «админским» навсегда (до очистки
+  // localStorage). Иначе панель пропадала на следующей загрузке страницы.
+  const queryKey = params.get('adminKey');
+  const adminKey = queryKey || localStorage.getItem('adminKey');
+
+  React.useEffect(() => {
+    if (queryKey) localStorage.setItem('adminKey', queryKey);
+  }, [queryKey]);
 
   const [job, setJob] = React.useState(null);
 

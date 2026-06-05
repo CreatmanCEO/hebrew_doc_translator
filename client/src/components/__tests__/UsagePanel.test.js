@@ -9,6 +9,16 @@ test('renders nothing without admin key', () => {
   expect(container.firstChild).toBeNull();
 });
 
+test('persists adminKey from URL query into localStorage', async () => {
+  const orig = window.location;
+  delete window.location;
+  window.location = { search: '?adminKey=fromurl' };
+  global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ byOwner: {}, jobs: [] }) }));
+  render(<UsagePanel resultToken="tok1" />);
+  await waitFor(() => expect(localStorage.getItem('adminKey')).toBe('fromurl'));
+  window.location = orig;
+});
+
 test('shows usage when admin key present', async () => {
   localStorage.setItem('adminKey', 'secret');
   global.fetch = jest.fn(async () => ({ ok:true, json: async () => ({
