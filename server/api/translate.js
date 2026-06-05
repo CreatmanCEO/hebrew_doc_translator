@@ -16,7 +16,8 @@ const { validateMagicBytes } = require('../middleware/fileValidation');
 const { emitToSession } = require('../socket/rooms');
 const { extractParagraphs, writeBack } = require('../services/docxInplace');
 const { assertDocxSafe } = require('../services/zipGuard');
-const { extractBlocks, renderOverlay } = require('../services/pdfOverlay');
+const { structureAndTranslate } = require('../services/pdfStructure');
+const { renderStructuredDocx } = require('../services/structuredDocx');
 
 // Инициализируем сервисы
 const documentProcessor = new DocumentProcessor();
@@ -24,9 +25,6 @@ const aiProvider = new LiteLLMProvider();
 
 // Жёсткий предел на число сегментов в одном документе (DoS-guard + бюджет).
 const MAX_SEGMENTS = Number(process.env.MAX_SEGMENTS) || 1500;
-
-// Предел числа страниц PDF для positional overlay (DoS-guard + бюджет рендера).
-const MAX_PAGES = Number(process.env.MAX_PAGES) || 50;
 
 // Предел распакованного размера DOCX (zip-bomb guard) для воркера.
 const MAX_DOCX_UNCOMPRESSED = Number(process.env.MAX_DOCX_UNCOMPRESSED_MB || 100) * 1024 * 1024;
@@ -110,41 +108,24 @@ documentQueue.process('translate', async (job) => {
         console.warn('DOCX in-place failed, falling back to flat:', e.message);
       }
     } else if (ext === 'pdf') {
-      // PDF: positional overlay поверх копии оригинала (сохраняем картинки/вёрстку).
+      // PDF: извлекаем структуру через LLM и рендерим чистый DOCX.
       // Сканы (нет текстового слоя) или любая ошибка → плоский путь ниже.
       try {
         const buffer = await fs.readFile(filePath);
-        const { blocks: pblocks, noTextLayer } = await extractBlocks(buffer);
-        if (noTextLayer || pblocks.length === 0) throw new Error('no text layer (scanned?)');
-        const maxPage = pblocks.reduce((m, b) => Math.max(m, b.page), 0);
-        if (maxPage + 1 > MAX_PAGES) throw new Error(`too many pages: ${maxPage + 1} > ${MAX_PAGES}`);
-        const blocks = pblocks.map(b => ({ type: 'paragraph', content: b.content }));
-        const { blocks: docBlocks, segments } = buildSegments(blocks);
-        if (docBlocks.length !== pblocks.length) {
-          throw new Error(`block/segment mismatch ${docBlocks.length} != ${pblocks.length}`);
-        }
-        await job.progress(40);
-        doc = await buildTranslationDocument(
-          { blocks: docBlocks, segments },
-          (chunk) => aiProvider.translateBatchAligned(chunk, sourceLang || 'he', targetLang),
-          { sourceLang: sourceLang || 'he', targetLang, maxSegments: MAX_SEGMENTS,
-            concurrency: 2, maxPerChunk: 8, maxTokens: 1200,
-            owner: 'anon', jobId: String(job.id), ts: Date.now(),
-            onCap: (info) => console.warn(`Segment cap hit: ${info.total} > ${info.cap} (job ${job.id})`) }
+        const { structuredDoc, noTextLayer } = await structureAndTranslate(
+          buffer, sourceLang || 'he', targetLang,
+          (system, user) => aiProvider.chatJSON(system, user),
+          { owner:'anon', jobId: String(job.id), ts: Date.now() }
         );
+        if (noTextLayer || !structuredDoc.elements.length) throw new Error('no text layer (scanned?)');
         await job.progress(80);
-        const overlayBlocks = pblocks.map((b, i) => ({
-          page: b.page,
-          bbox: b.bbox,
-          pageHeight: b.pageHeight,
-          target: docBlocks[i].sentences.map(s => s.target).join(' ')
-        }));
-        const outBuf = await renderOverlay(buffer, overlayBlocks);
-        outputPath = path.join(path.dirname(filePath), `translated_${crypto.randomUUID()}.pdf`);
+        doc = structuredDoc;
+        const outBuf = await renderStructuredDocx(structuredDoc);
+        outputPath = path.join(path.dirname(filePath), `translated_${crypto.randomUUID()}.docx`);
         await fs.writeFile(outputPath, outBuf);
         usedInplace = true;
       } catch (e) {
-        console.warn('PDF overlay failed, falling back to flat:', e.message);
+        console.warn('PDF structure failed, falling back to flat:', e.message);
       }
     }
 
