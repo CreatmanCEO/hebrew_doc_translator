@@ -7,10 +7,14 @@ jest.mock('socket.io-client', () => ({
 }));
 
 import App from './App';
+import { LanguageProvider, dict } from './i18n';
 
-test('App mounts without crashing', () => {
-  render(<App />);
-  expect(
-    screen.getByText(/Переводчик документов с иврита/i)
-  ).toBeInTheDocument();
+test('App mounts and renders the localized title', () => {
+  render(
+    <LanguageProvider>
+      <App />
+    </LanguageProvider>
+  );
+  // Default UI language is English; the wordmark + heading both use appTitle.
+  expect(screen.getAllByText(dict.en.appTitle).length).toBeGreaterThan(0);
 });

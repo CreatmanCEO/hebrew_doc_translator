@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
-import { Container, Typography, Box, Paper } from '@mui/material';
+import { AppBar, Toolbar, Container, Typography, Box, Stack } from '@mui/material';
 import { SnackbarProvider } from 'notistack';
 import io from 'socket.io-client';
 import DocumentUpload from './components/DocumentUpload';
@@ -7,12 +7,15 @@ import TranslationProgress from './components/TranslationProgress';
 import DocumentPreview from './components/DocumentPreview';
 import SideBySideViewer from './components/SideBySideViewer';
 import UsagePanel from './components/UsagePanel';
+import LanguageSwitcher from './components/LanguageSwitcher';
+import { useT } from './i18n';
 
 // API origin: пусто => тот же origin, что и страница (прод, через Traefik).
 // В dev задаётся через client/.env.development (REACT_APP_API_URL=http://localhost:3001).
 const API_URL = process.env.REACT_APP_API_URL || '';
 
 function App() {
+  const t = useT();
   const [translationState, setTranslationState] = React.useState({
     status: 'idle',
     progress: 0,
@@ -112,7 +115,7 @@ function App() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Ошибка при загрузке файла');
+        throw new Error(data.message || t('statusError'));
       }
 
       if (data.success) {
@@ -123,7 +126,7 @@ function App() {
           jobId: data.jobId
         }));
       } else {
-        throw new Error(data.message || 'Ошибка при обработке файла');
+        throw new Error(data.message || t('statusError'));
       }
       
     } catch (error) {
@@ -132,7 +135,7 @@ function App() {
         ...prev,
         status: 'error',
         progress: 0,
-        error: error.message || 'Произошла ошибка при загрузке файла'
+        error: error.message || t('statusError')
       }));
     }
   };
@@ -164,44 +167,60 @@ function App() {
     });
   };
 
+  const busy =
+    translationState.status === 'uploading' || translationState.status === 'processing';
+
   return (
     <SnackbarProvider maxSnack={3}>
-      <Container maxWidth="md">
-        <Box sx={{ my: 4 }}>
-          <Typography variant="h4" component="h1" gutterBottom align="center">
-            Переводчик документов с иврита
-          </Typography>
-          
-          <Paper sx={{ mt: 4, p: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Загрузите документ для перевода
+      <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
+        <AppBar position="static" color="transparent" elevation={0}>
+          <Toolbar sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
+            <Typography
+              variant="subtitle1"
+              component="span"
+              sx={{ flexGrow: 1, fontWeight: 600, letterSpacing: '-0.01em' }}
+            >
+              {t('appTitle')}
             </Typography>
-            <DocumentUpload 
-              onFileUpload={handleFileUpload} 
-              disabled={translationState.status === 'uploading' || translationState.status === 'processing'}
+            <LanguageSwitcher />
+          </Toolbar>
+        </AppBar>
+
+        <Container maxWidth="md" sx={{ py: { xs: 4, sm: 6 } }}>
+          <Stack spacing={1} sx={{ mb: 4, textAlign: 'center' }}>
+            <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
+              {t('appTitle')}
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              {t('subtitle')}
+            </Typography>
+          </Stack>
+
+          <Stack spacing={3}>
+            <DocumentUpload onFileUpload={handleFileUpload} disabled={busy} />
+
+            <TranslationProgress
+              status={translationState.status}
+              progress={translationState.progress}
+              error={translationState.error}
+              onReset={handleReset}
             />
-          </Paper>
 
-          <TranslationProgress
-            status={translationState.status}
-            progress={translationState.progress}
-            error={translationState.error}
-            onReset={handleReset}
-          />
+            {translationState.status === 'completed' && translationState.documentUrl && (
+              <DocumentPreview
+                documentUrl={translationState.documentUrl}
+                originalName={translationState.originalName}
+                onDownload={handleDownload}
+                onReset={handleReset}
+              />
+            )}
 
-          {translationState.status === 'completed' && translationState.documentUrl && (
-            <DocumentPreview
-              documentUrl={translationState.documentUrl}
-              originalName={translationState.originalName}
-              onDownload={handleDownload}
-            />
-          )}
+            <UsagePanel resultToken={resultToken} />
 
-          <UsagePanel resultToken={resultToken} />
-
-          {translationDoc && <SideBySideViewer doc={translationDoc} />}
-        </Box>
-      </Container>
+            {translationDoc && <SideBySideViewer doc={translationDoc} />}
+          </Stack>
+        </Container>
+      </Box>
     </SnackbarProvider>
   );
 }
